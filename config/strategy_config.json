@@ -16,23 +16,15 @@
   },
   
   "symbols": {
-    "AAPL": {
+    "IBIT": {
       "enabled": true,
       "contracts": 1
     },
-    "SPY": {
-      "enabled": true,
-      "contracts": 2
-    },
-    "TSLA": {
+    "MSTY": {
       "enabled": true,
       "contracts": 1
     },
-    "NVDA": {
-      "enabled": true,
-      "contracts": 1
-    },
-    "MSFT": {
+    "SBET": {
       "enabled": true,
       "contracts": 1
     }
