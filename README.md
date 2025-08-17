@@ -49,6 +49,10 @@ This code helps pick the right puts and calls to sell, tracks your positions, an
    ALPACA_API_KEY=your_public_key
    ALPACA_SECRET_KEY=your_private_key
    IS_PAPER=true  # Set to false if using a live account
+   
+   # Balance Management Settings
+   BALANCE_ALLOCATION=0.5              # Use 50% of non-margin balance (0.0 to 1.0)
+   MAX_POSITIONS_PER_SYMBOL=2         # Allow up to 2 put positions per symbol for averaging
    ```
 
    Your credentials will be loaded from `.env` automatically.
@@ -60,6 +64,11 @@ This code helps pick the right puts and calls to sell, tracks your positions, an
 6. **Configure trading parameters:**
 
    Adjust values in `config/params.py` to customize things like buying power limits, options characteristics (e.g., greeks / expiry), and scoring thresholds. Each parameter is documented in the file.
+   
+   **Key Balance Management Features:**
+   - **Dynamic Balance Allocation**: Uses actual account balance (non-marginable buying power)
+   - **Position Scaling**: Set `MAX_POSITIONS_PER_SYMBOL` to allow multiple contracts per symbol
+   - **Premium-Adjusted Cost Basis**: Tracks collected premiums to lower effective cost basis for better exits
 
 
 7. **Run the strategy**
@@ -99,21 +108,43 @@ This code helps pick the right puts and calls to sell, tracks your positions, an
    run-strategy --help
    ```
 
+8. **Monitor your positions and premiums:**
+
+   Use the database viewer to track your strategy performance:
+   
+   ```bash
+   # View overall summary
+   python scripts/db_viewer.py --summary
+   
+   # View cost basis (shows premium-adjusted prices)
+   python scripts/db_viewer.py --cost-basis
+   
+   # View all data for a specific symbol
+   python scripts/db_viewer.py --symbol AAPL --all
+   
+   # View premium history for last 60 days
+   python scripts/db_viewer.py --premiums --days 60
+   ```
+
 ---
 
 ### What the Script Does
 
-* Checks your current positions to identify any assignments and sells covered calls on those.
-* Filters your chosen stocks based on buying power (you must be able to afford 100 shares per put).
-* Scores put options using `core.strategy.score_options()`, which ranks by annualized return discounted by the probability of assignment.
-* Places trades for the top-ranked options.
+* **Position Management**: Checks current positions to identify assignments and sells covered calls
+* **Balance Optimization**: Uses actual account balance (non-marginable buying power) with configurable allocation percentage
+* **Smart Filtering**: Filters stocks based on available buying power (must afford 100 shares × number of allowed positions)
+* **Premium Tracking**: Records all premiums in SQLite database for cost basis adjustments
+* **Intelligent Scoring**: Ranks options by annualized return discounted by assignment probability
+* **Multi-Position Support**: Allows multiple put positions per symbol for dollar-cost averaging
+* **Cost Basis Adjustment**: Uses collected call premiums to lower effective cost basis for better exits
 
 ---
 
 ### Notes
 
 * **Account state matters**: This strategy assumes full control of the account — all positions are expected to be managed by this script. For best results, start with a clean account (e.g. by using the `--fresh-start` flag).
-* **One contract per symbol**: To simplify risk management, this implementation trades only one contract at a time per symbol. You can modify this logic in `core/strategy.py` to suit more advanced use cases.
+* **Multiple contracts per symbol**: Set `MAX_POSITIONS_PER_SYMBOL` in `.env` to control how many put positions you can have per symbol (enables averaging down).
+* **Database tracking**: All trades and premiums are stored in a local SQLite database (`data/wheel_strategy.db`) for analysis and tax reporting.
 * The **user agent** for API calls defaults to `OPTIONS-WHEEL` to help Alpaca track usage of runnable algos and improve user experience.  You can opt out by adjusting the `USER_AGENT` variable in `core/user_agent_mixin.py` — though we kindly hope you’ll keep it enabled to support ongoing improvements.  
 * **Want to customize the strategy?** The `core/strategy.py` module is a great place to start exploring and modifying the logic.
 
@@ -197,7 +228,7 @@ These results are based on historical, simulated trading in a paper account over
 
 ## Core Strategy Logic
 
-The core logic is defined in `core/strategy.py`.
+The core logic is defined in `core/strategy.py`, with enhanced features in `core/database.py` for tracking.
 
 * **Stock Filtering:**
   The strategy filters underlying stocks based on available buying power. It fetches the latest trade prices for each candidate symbol and retains only those where the cost to buy 100 shares (`price × 100`) is within your buying power limit. This keeps trades within capital constraints and can be extended to include custom filters like volatility or technical indicators.
@@ -218,7 +249,14 @@ The core logic is defined in `core/strategy.py`.
   * Adding 5 days to DTE smooths the score for near-term options
 
 * **Option Selection:**
-  From all scored options, the strategy picks the highest-scoring contract per underlying symbol to promote diversification. It filters out options scoring below `SCORE_MIN` and returns either the top N options or all qualifying options.
+  The strategy can select multiple contracts per underlying (controlled by `MAX_POSITIONS_PER_SYMBOL`) to enable position averaging. It filters out options scoring below `SCORE_MIN` and returns the top-scoring options while respecting position limits.
+
+* **Cost Basis Management:**
+  The system tracks all premiums collected from covered calls and automatically adjusts your cost basis. For example:
+  - Buy shares at $100 (assigned from put)
+  - Sell covered call for $2 premium → Adjusted cost basis: $98
+  - If call expires worthless, sell another for $1.50 → Adjusted cost basis: $96.50
+  - System now targets call strikes ≥ $96.50 instead of $100 for better exit probability
 
 ---
 
@@ -236,9 +274,10 @@ The core logic is defined in `core/strategy.py`.
 
 ### Managing a Larger Portfolio
 
-* Allocate larger trade sizes to higher-scoring options for more efficient capital use.
-* Allow multiple wheels per stock to increase position flexibility.
-* Set exposure limits per underlying or sector to manage risk.
+* **Dynamic Position Sizing**: Already implemented via `MAX_POSITIONS_PER_SYMBOL`
+* **Balance Allocation**: Use `BALANCE_ALLOCATION` to control what percentage of your account to deploy
+* **Database Analytics**: Query the SQLite database for position analysis and performance metrics
+* **Sector Limits**: Can be added by extending the filtering logic in `core/strategy.py`
 
 ### Stop Loss When Puts Get Assigned
 

@@ -34,22 +34,57 @@ def score_options(options):
     scores = [(1 - abs(p.delta)) * (250 / (p.dte + 5)) * (p.bid_price / p.strike) for p in options]
     return scores
 
-def select_options(options, scores, n=None):
+def select_options(options, scores, n=None, max_per_symbol=1, position_counts=None):
     """
-    Select the top n options, keeping only the highest-scoring option per underlying symbol.
+    Select the top n options, allowing multiple positions per underlying symbol.
+    
+    Args:
+        options: List of option contracts
+        scores: List of scores for each option
+        n: Maximum total number of options to select
+        max_per_symbol: Maximum positions allowed per symbol
+        position_counts: Dict of current position counts by symbol
     """
     # Filter out low scores
     filtered = [(option, score) for option, score in zip(options, scores) if score > SCORE_MIN]
 
-    # Pick the best option per underlying
-    best_per_underlying = {}
+    # Group options by underlying and sort by score
+    options_by_underlying = {}
     for option, score in filtered:
         underlying = option.underlying
-        if (underlying not in best_per_underlying) or (score > best_per_underlying[underlying][1]):
-            best_per_underlying[underlying] = (option, score)
-
-    # Sort the best options by score
-    sorted_best = sorted(best_per_underlying.values(), key=lambda x: x[1], reverse=True)
-
-    # Return top n (or all if n not specified)
-    return [option for option, _ in sorted_best[:n]] if n else [option for option, _ in sorted_best]
+        if underlying not in options_by_underlying:
+            options_by_underlying[underlying] = []
+        options_by_underlying[underlying].append((option, score))
+    
+    # Sort options within each underlying by score
+    for underlying in options_by_underlying:
+        options_by_underlying[underlying].sort(key=lambda x: x[1], reverse=True)
+    
+    # Select options respecting max_per_symbol limit
+    selected_options = []
+    if position_counts is None:
+        position_counts = {}
+    
+    # Sort underlyings by their best option's score
+    sorted_underlyings = sorted(
+        options_by_underlying.keys(),
+        key=lambda u: options_by_underlying[u][0][1],
+        reverse=True
+    )
+    
+    for underlying in sorted_underlyings:
+        current_positions = position_counts.get(underlying, {}).get('puts', 0)
+        positions_to_add = min(
+            max_per_symbol - current_positions,
+            len(options_by_underlying[underlying])
+        )
+        
+        for i in range(positions_to_add):
+            if n and len(selected_options) >= n:
+                break
+            selected_options.append(options_by_underlying[underlying][i][0])
+        
+        if n and len(selected_options) >= n:
+            break
+    
+    return selected_options

@@ -17,5 +17,5 @@ __pycache__/
 .vscode/
 
 #AI
-.cluade
+.claude/
 CLAUDE.md

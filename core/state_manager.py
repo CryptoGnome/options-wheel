@@ -1,7 +1,10 @@
 from .utils import parse_option_symbol
+from .premium_tracker import PremiumTracker
 from alpaca.trading.enums import AssetClass
+from collections import defaultdict
 
 def calculate_risk(positions):
+    """Calculate total risk from all positions"""
     risk = 0
     for p in positions:
         if p.asset_class == AssetClass.US_EQUITY:
@@ -13,9 +16,28 @@ def calculate_risk(positions):
 
     return risk
 
-def update_state(all_positions):    
+def count_positions_by_symbol(positions):
+    """Count the number of positions (puts, calls, shares) for each underlying symbol"""
+    position_counts = defaultdict(lambda: {'puts': 0, 'calls': 0, 'shares': 0})
+    
+    for p in positions:
+        if p.asset_class == AssetClass.US_EQUITY:
+            underlying = p.symbol
+            position_counts[underlying]['shares'] += abs(int(p.qty)) // 100  # Count in lots of 100
+        elif p.asset_class == AssetClass.US_OPTION:
+            underlying, option_type, _ = parse_option_symbol(p.symbol)
+            if option_type == 'P':
+                position_counts[underlying]['puts'] += abs(int(p.qty))
+            elif option_type == 'C':
+                position_counts[underlying]['calls'] += abs(int(p.qty))
+    
+    return dict(position_counts)
+
+def update_state(all_positions, premium_tracker=None):    
     """
     Given the current positions, return a state dictionary describing where in the wheel each symbol is.
+    Now supports multiple positions per symbol for averaging down.
+    Includes premium-adjusted cost basis for better covered call strikes.
     """
 
     state = {}
@@ -31,7 +53,21 @@ def update_state(all_positions):
                     raise ValueError(f"Unexpected state for {underlying}: {state[underlying]}")
                 state[underlying]["type"] = "short_call"
             else:
-                state[underlying] = {"type": "long_shares", "price": float(p.avg_entry_price), "qty": int(p.qty)}
+                avg_price = float(p.avg_entry_price)
+                qty = int(p.qty)
+                
+                # Calculate adjusted cost basis if premium tracker is available
+                if premium_tracker:
+                    adjusted_price = premium_tracker.get_adjusted_cost_basis(underlying, avg_price, qty)
+                else:
+                    adjusted_price = avg_price
+                
+                state[underlying] = {
+                    "type": "long_shares", 
+                    "price": avg_price,  # Original entry price
+                    "adjusted_price": adjusted_price,  # Premium-adjusted price
+                    "qty": qty
+                }
 
         elif p.asset_class == AssetClass.US_OPTION:
             if int(p.qty) >= 0:
@@ -51,9 +87,17 @@ def update_state(all_positions):
                 else:
                     raise ValueError(f"Unknown option type: {option_type}")
 
-    # Final validation
+    # Final validation and add position counts
+    position_counts = count_positions_by_symbol(all_positions)
+    
     for underlying, st in state.items():
         if st["type"] not in {"short_put", "long_shares", "short_call"}:
             raise ValueError(f"Invalid final state for {underlying}: {st}")
+        
+        # Add position counts to state
+        if underlying in position_counts:
+            st["position_counts"] = position_counts[underlying]
+        else:
+            st["position_counts"] = {'puts': 0, 'calls': 0, 'shares': 0}
         
     return state

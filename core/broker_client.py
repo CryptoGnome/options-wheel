@@ -28,6 +28,16 @@ class BrokerClient:
 
     def get_positions(self):
         return self.trade_client.get_all_positions()
+    
+    def get_account(self):
+        """Get account information including balances"""
+        return self.trade_client.get_account()
+    
+    def get_non_margin_buying_power(self):
+        """Get the non-marginable buying power (cash available for trading)"""
+        account = self.get_account()
+        # Use non_marginable_buying_power for cash-secured strategies
+        return float(account.non_marginable_buying_power)
 
     def market_sell(self, symbol, qty=1):
         req = MarketOrderRequest(

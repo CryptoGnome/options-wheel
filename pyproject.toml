@@ -17,7 +17,8 @@ dependencies = [
     "pandas>=1.5",
     "numpy>=1.23",
     "requests>=2.28",
-    "alpaca-py"
+    "alpaca-py",
+    "tabulate>=0.9.0"
 ]
 
 [project.scripts]
