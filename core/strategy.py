@@ -1,4 +1,15 @@
-from config.params import DELTA_MIN, DELTA_MAX, YIELD_MIN, YIELD_MAX, OPEN_INTEREST_MIN, SCORE_MIN
+from config.config_loader import StrategyConfig
+
+# Load configuration
+_config = StrategyConfig()
+_filters = _config.get_option_filters()
+
+DELTA_MIN = _filters['delta_min']
+DELTA_MAX = _filters['delta_max']
+YIELD_MIN = _filters['yield_min']
+YIELD_MAX = _filters['yield_max']
+OPEN_INTEREST_MIN = _filters['open_interest_min']
+SCORE_MIN = _filters['score_min']
 
 def filter_underlying(client, symbols, buying_power_limit):
     """

@@ -3,10 +3,9 @@ from core.broker_client import BrokerClient
 from core.execution import sell_puts, sell_calls
 from core.state_manager import update_state, calculate_risk, count_positions_by_symbol
 from core.database import WheelDatabase
-from config.credentials import ALPACA_API_KEY, ALPACA_SECRET_KEY, IS_PAPER, BALANCE_ALLOCATION, MAX_POSITIONS_PER_SYMBOL
-from config.params import MAX_RISK
-from logging.strategy_logger import StrategyLogger
-from logging.logger_setup import setup_logger
+from config.credentials import ALPACA_API_KEY, ALPACA_SECRET_KEY, IS_PAPER, strategy_config
+from strategy_logging.strategy_logger import StrategyLogger
+from strategy_logging.logger_setup import setup_logger
 from core.cli_args import parse_args
 
 def main():
@@ -19,22 +18,27 @@ def main():
 
     strat_logger.set_fresh_start(args.fresh_start)
 
-    SYMBOLS_FILE = Path(__file__).parent.parent / "config" / "symbol_list.txt"
-    with open(SYMBOLS_FILE, 'r') as file:
-        SYMBOLS = [line.strip() for line in file.readlines()]
+    # Load symbols from JSON config instead of text file
+    SYMBOLS = strategy_config.get_enabled_symbols()
+    if not SYMBOLS:
+        logger.error("No enabled symbols found in config/strategy_config.json")
+        return
+    
+    logger.info(f"Trading symbols: {', '.join(SYMBOLS)}")
 
     client = BrokerClient(api_key=ALPACA_API_KEY, secret_key=ALPACA_SECRET_KEY, paper=IS_PAPER)
 
     # Get actual account balance
     actual_balance = client.get_non_margin_buying_power()
-    allocated_balance = actual_balance * BALANCE_ALLOCATION
-    logger.info(f"Account balance: ${actual_balance:.2f}, Allocated for trading: ${allocated_balance:.2f} ({BALANCE_ALLOCATION*100:.0f}%)")
+    balance_allocation = strategy_config.get_balance_allocation()
+    allocated_balance = actual_balance * balance_allocation
+    logger.info(f"Account balance: ${actual_balance:.2f}, Allocated for trading: ${allocated_balance:.2f} ({balance_allocation*100:.0f}%)")
     
     if args.fresh_start:
         logger.info("Running in fresh start mode — liquidating all positions.")
         client.liquidate_all_positions()
         allowed_symbols = SYMBOLS
-        buying_power = min(allocated_balance, MAX_RISK)  # Use lesser of allocated balance or MAX_RISK
+        buying_power = allocated_balance  # Use allocated percentage of balance
     else:
         positions = client.get_positions()
         strat_logger.add_current_positions(positions)
@@ -59,17 +63,23 @@ def main():
         # Determine which symbols can have more positions
         allowed_symbols = []
         for symbol in SYMBOLS:
-            current_put_count = position_counts.get(symbol, {}).get('puts', 0)
+            # Get current positions for this symbol
+            symbol_positions = position_counts.get(symbol, {})
+            put_count = symbol_positions.get('puts', 0)
+            share_lots = symbol_positions.get('shares', 0)  # Number of 100-share lots
             
-            # Allow selling more puts if under the max position limit
-            # This enables averaging down when assigned
-            if current_put_count < MAX_POSITIONS_PER_SYMBOL:
+            # Calculate current wheel layers (each lot of shares + its puts counts as a layer)
+            current_layers = max(put_count, share_lots)
+            max_layers = strategy_config.get_max_wheel_layers()
+            
+            # Allow new puts if under max wheel layers
+            if current_layers < max_layers:
                 allowed_symbols.append(symbol)
                 if symbol in position_counts:
-                    logger.info(f"{symbol}: {current_put_count}/{MAX_POSITIONS_PER_SYMBOL} put positions used")
+                    logger.info(f"{symbol}: {current_layers}/{max_layers} wheel layers active")
         
         # Calculate available buying power
-        buying_power = min(allocated_balance - current_risk, MAX_RISK - current_risk)
+        buying_power = allocated_balance - current_risk
         buying_power = max(0, buying_power)  # Ensure non-negative
     
     strat_logger.set_buying_power(buying_power)

@@ -1,0 +1,104 @@
+"""
+Load and manage strategy configuration from JSON file.
+"""
+import json
+from pathlib import Path
+from typing import Dict, Any
+
+class StrategyConfig:
+    """Handles loading and accessing strategy configuration"""
+    
+    def __init__(self, config_path=None):
+        if config_path is None:
+            config_path = Path(__file__).parent / "strategy_config.json"
+        
+        self.config_path = config_path
+        self.config = self._load_config()
+        
+    def _load_config(self) -> Dict[str, Any]:
+        """Load configuration from JSON file"""
+        if not self.config_path.exists():
+            # Create default config if it doesn't exist
+            default_config = {
+                "balance_settings": {
+                    "allocation_percentage": 0.5,
+                    "max_wheel_layers": 2
+                },
+                "option_filters": {
+                    "delta_min": 0.15,
+                    "delta_max": 0.30,
+                    "yield_min": 0.04,
+                    "yield_max": 1.00,
+                    "expiration_min_days": 0,
+                    "expiration_max_days": 21,
+                    "open_interest_min": 100,
+                    "score_min": 0.05
+                },
+                "symbols": {},
+                "default_contracts": 1
+            }
+            
+            with open(self.config_path, 'w') as f:
+                json.dump(default_config, f, indent=2)
+            
+            return default_config
+        
+        with open(self.config_path, 'r') as f:
+            return json.load(f)
+    
+    def reload(self):
+        """Reload configuration from file"""
+        self.config = self._load_config()
+    
+    def get_enabled_symbols(self) -> list:
+        """Get list of enabled symbols"""
+        return [
+            symbol for symbol, settings in self.config.get("symbols", {}).items()
+            if settings.get("enabled", True)
+        ]
+    
+    def get_contracts_for_symbol(self, symbol: str) -> int:
+        """Get number of contracts to trade for a specific symbol"""
+        symbol_config = self.config.get("symbols", {}).get(symbol, {})
+        return symbol_config.get("contracts", self.config.get("default_contracts", 1))
+    
+    def get_balance_allocation(self) -> float:
+        """Get balance allocation percentage"""
+        return self.config.get("balance_settings", {}).get("allocation_percentage", 0.5)
+    
+    def get_max_wheel_layers(self) -> int:
+        """Get maximum wheel layers per symbol"""
+        return self.config.get("balance_settings", {}).get("max_wheel_layers", 2)
+    
+    def get_option_filters(self) -> dict:
+        """Get all option filter parameters"""
+        return self.config.get("option_filters", {
+            "delta_min": 0.15,
+            "delta_max": 0.30,
+            "yield_min": 0.04,
+            "yield_max": 1.00,
+            "expiration_min_days": 0,
+            "expiration_max_days": 21,
+            "open_interest_min": 100,
+            "score_min": 0.05
+        })
+    
+    def update_symbol(self, symbol: str, enabled: bool = None, contracts: int = None):
+        """Update symbol configuration"""
+        if symbol not in self.config["symbols"]:
+            self.config["symbols"][symbol] = {}
+        
+        if enabled is not None:
+            self.config["symbols"][symbol]["enabled"] = enabled
+        if contracts is not None:
+            self.config["symbols"][symbol]["contracts"] = contracts
+        
+        self.save()
+    
+    def save(self):
+        """Save current configuration to file"""
+        with open(self.config_path, 'w') as f:
+            json.dump(self.config, f, indent=2)
+    
+    def __repr__(self):
+        return f"StrategyConfig(symbols={len(self.get_enabled_symbols())}, allocation={self.get_balance_allocation():.0%})"

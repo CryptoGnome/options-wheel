@@ -1,4 +1,11 @@
-from config.params import EXPIRATION_MIN, EXPIRATION_MAX
+from config.config_loader import StrategyConfig
+
+# Load configuration
+_config = StrategyConfig()
+_filters = _config.get_option_filters()
+
+EXPIRATION_MIN = _filters['expiration_min_days']
+EXPIRATION_MAX = _filters['expiration_max_days']
 from .user_agent_mixin import UserAgentMixin 
 from alpaca.trading.client import TradingClient
 from alpaca.data.historical.option import OptionHistoricalDataClient

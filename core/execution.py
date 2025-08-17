@@ -2,7 +2,7 @@ import logging
 from .strategy import filter_underlying, filter_options, score_options, select_options
 from .database import WheelDatabase
 from models.contract import Contract
-from config.credentials import MAX_POSITIONS_PER_SYMBOL
+from config.credentials import strategy_config
 import numpy as np
 
 logger = logging.getLogger(f"strategy.{__name__}")
@@ -29,7 +29,7 @@ def sell_puts(client, allowed_symbols, buying_power, position_counts=None, db=No
     if put_options:
         logger.info("Scoring put options...")
         scores = score_options(put_options)
-        put_options = select_options(put_options, scores, max_per_symbol=MAX_POSITIONS_PER_SYMBOL, position_counts=position_counts)
+        put_options = select_options(put_options, scores, max_per_symbol=strategy_config.get_max_wheel_layers(), position_counts=position_counts)
         for p in put_options:
             buying_power -= 100 * p.strike 
             if buying_power < 0:

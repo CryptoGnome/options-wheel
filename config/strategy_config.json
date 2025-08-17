@@ -1,0 +1,42 @@
+{
+  "balance_settings": {
+    "allocation_percentage": 0.99,
+    "max_wheel_layers": 2
+  },
+  
+  "option_filters": {
+    "delta_min": 0.15,
+    "delta_max": 0.30,
+    "yield_min": 0.04,
+    "yield_max": 1.00,
+    "expiration_min_days": 0,
+    "expiration_max_days": 21,
+    "open_interest_min": 100,
+    "score_min": 0.05
+  },
+  
+  "symbols": {
+    "AAPL": {
+      "enabled": true,
+      "contracts": 1
+    },
+    "SPY": {
+      "enabled": true,
+      "contracts": 2
+    },
+    "TSLA": {
+      "enabled": true,
+      "contracts": 1
+    },
+    "NVDA": {
+      "enabled": true,
+      "contracts": 1
+    },
+    "MSFT": {
+      "enabled": true,
+      "contracts": 1
+    }
+  },
+  
+  "default_contracts": 1
+}

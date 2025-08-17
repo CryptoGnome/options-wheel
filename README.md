@@ -41,34 +41,68 @@ This code helps pick the right puts and calls to sell, tracks your positions, an
    uv pip install -e .
    ```
 
-4. **Set up your API credentials:**
+4. **Set up your credentials and configuration:**
 
-   Create a `.env` file in the project root with the following content:
-
+   a. Create a `.env` file for API credentials:
    ```env
    ALPACA_API_KEY=your_public_key
    ALPACA_SECRET_KEY=your_private_key
    IS_PAPER=true  # Set to false if using a live account
-   
-   # Balance Management Settings
-   BALANCE_ALLOCATION=0.5              # Use 50% of non-margin balance (0.0 to 1.0)
-   MAX_POSITIONS_PER_SYMBOL=2         # Allow up to 2 put positions per symbol for averaging
    ```
 
-   Your credentials will be loaded from `.env` automatically.
-
-5. **Choose your symbols:**
-
-   The strategy trades only the symbols listed in `config/symbol_list.txt`. Edit this file to include the tickers you want to run the Wheel strategy on — one symbol per line. Choose stocks you'd be comfortable holding long-term.
-
-6. **Configure trading parameters:**
-
-   Adjust values in `config/params.py` to customize things like buying power limits, options characteristics (e.g., greeks / expiry), and scoring thresholds. Each parameter is documented in the file.
+   b. Configure your strategy in `config/strategy_config.json`:
+   ```json
+   {
+     "balance_settings": {
+       "allocation_percentage": 0.5,  // Use 50% of account balance
+       "max_wheel_layers": 2          // Run up to 2 wheel cycles per symbol
+     },
+     "option_filters": {
+       "delta_min": 0.15,
+       "delta_max": 0.30,
+       "yield_min": 0.04,
+       "yield_max": 1.00,
+       "expiration_min_days": 0,
+       "expiration_max_days": 21,
+       "open_interest_min": 100,
+       "score_min": 0.05
+     },
+     "symbols": {
+       "AAPL": {"enabled": true, "contracts": 1},
+       "SPY": {"enabled": true, "contracts": 2}
+     },
+     "default_contracts": 1
+   }
+   ```
    
-   **Key Balance Management Features:**
+   Or use the interactive config manager:
+   ```bash
+   python scripts/config_manager.py
+   ```
+
+5. **Symbol Configuration:**
+
+   Symbols are now configured in `config/strategy_config.json`. Each symbol can have:
+   - `enabled`: Whether to trade this symbol
+   - `contracts`: Number of contracts to trade per order
+   
+   The **wheel layers** concept allows multiple positions:
+   - Layer 1: Initial put → shares → covered call
+   - Layer 2: New put (while holding shares) for averaging down
+
+6. **Trading Parameters:**
+
+   All parameters are now in `config/strategy_config.json`:
+   - **Balance Settings**: allocation percentage (% of account to use), wheel layers
+   - **Option Filters**: delta range, DTE range, yield, open interest, minimum score
+   - **Symbol Settings**: enabled/disabled, contracts per symbol
+   
+   **Key Features:**
    - **Dynamic Balance Allocation**: Uses actual account balance (non-marginable buying power)
-   - **Position Scaling**: Set `MAX_POSITIONS_PER_SYMBOL` to allow multiple contracts per symbol
+   - **Wheel Layers**: Run multiple wheel cycles on same symbol for averaging down
+   - **Per-Symbol Contracts**: Configure different contract sizes for each symbol
    - **Premium-Adjusted Cost Basis**: Tracks collected premiums to lower effective cost basis for better exits
+   - **SQLite Database**: Tracks all trades, premiums, and positions
 
 
 7. **Run the strategy**
@@ -143,7 +177,9 @@ This code helps pick the right puts and calls to sell, tracks your positions, an
 ### Notes
 
 * **Account state matters**: This strategy assumes full control of the account — all positions are expected to be managed by this script. For best results, start with a clean account (e.g. by using the `--fresh-start` flag).
-* **Multiple contracts per symbol**: Set `MAX_POSITIONS_PER_SYMBOL` in `.env` to control how many put positions you can have per symbol (enables averaging down).
+* **Single Config File**: ALL strategy settings are in `config/strategy_config.json` (except API keys which stay in `.env` for security)
+* **Wheel Layers**: Set `max_wheel_layers` to control how many wheel cycles can run simultaneously per symbol (enables averaging down while holding shares).
+* **Per-Symbol Configuration**: Each symbol can have different contract sizes configured in the JSON.
 * **Database tracking**: All trades and premiums are stored in a local SQLite database (`data/wheel_strategy.db`) for analysis and tax reporting.
 * The **user agent** for API calls defaults to `OPTIONS-WHEEL` to help Alpaca track usage of runnable algos and improve user experience.  You can opt out by adjusting the `USER_AGENT` variable in `core/user_agent_mixin.py` — though we kindly hope you’ll keep it enabled to support ongoing improvements.  
 * **Want to customize the strategy?** The `core/strategy.py` module is a great place to start exploring and modifying the logic.
@@ -249,7 +285,7 @@ The core logic is defined in `core/strategy.py`, with enhanced features in `core
   * Adding 5 days to DTE smooths the score for near-term options
 
 * **Option Selection:**
-  The strategy can select multiple contracts per underlying (controlled by `MAX_POSITIONS_PER_SYMBOL`) to enable position averaging. It filters out options scoring below `SCORE_MIN` and returns the top-scoring options while respecting position limits.
+  The strategy respects wheel layers per symbol, allowing you to sell new puts even while holding shares and covered calls. This enables averaging down when positions move against you.
 
 * **Cost Basis Management:**
   The system tracks all premiums collected from covered calls and automatically adjusts your cost basis. For example:
