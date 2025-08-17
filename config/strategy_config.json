@@ -15,18 +15,37 @@
     "score_min": 0.05
   },
   
+  "rolling_settings": {
+    "enabled": false,
+    "days_before_expiry": 1,
+    "min_premium_to_roll": 0.05,
+    "roll_delta_target": 0.25
+  },
+  
   "symbols": {
     "IBIT": {
       "enabled": true,
-      "contracts": 1
+      "contracts": 1,
+      "rolling": {
+        "enabled": false,
+        "strategy": "both"
+      }
     },
     "MSTY": {
       "enabled": true,
-      "contracts": 1
+      "contracts": 1,
+      "rolling": {
+        "enabled": false,
+        "strategy": "forward"
+      }
     },
     "SBET": {
       "enabled": true,
-      "contracts": 1
+      "contracts": 1,
+      "rolling": {
+        "enabled": false,
+        "strategy": "both"
+      }
     }
   },
   

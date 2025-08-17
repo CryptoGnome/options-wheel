@@ -67,8 +67,21 @@ This code helps pick the right puts and calls to sell, tracks your positions, an
        "open_interest_min": 100,
        "score_min": 0.05
      },
+     "rolling_settings": {
+       "enabled": false,              // Global rolling on/off
+       "days_before_expiry": 1,       // When to consider rolling
+       "min_premium_to_roll": 0.05,   // Minimum premium required
+       "roll_delta_target": 0.25      // Target delta for new positions
+     },
      "symbols": {
-       "AAPL": {"enabled": true, "contracts": 1},
+       "AAPL": {
+         "enabled": true, 
+         "contracts": 1,
+         "rolling": {
+           "enabled": false,           // Symbol-specific override
+           "strategy": "forward"       // forward, down, or both
+         }
+       },
        "SPY": {"enabled": true, "contracts": 2}
      },
      "default_contracts": 1
@@ -103,6 +116,7 @@ This code helps pick the right puts and calls to sell, tracks your positions, an
    - **Per-Symbol Contracts**: Configure different contract sizes for each symbol
    - **Premium-Adjusted Cost Basis**: Tracks collected premiums to lower effective cost basis for better exits
    - **SQLite Database**: Tracks all trades, premiums, and positions
+   - **Option Rolling**: Automatically roll short puts before expiration to manage risk and capture additional premium
 
 
 7. **Run the strategy**
@@ -171,6 +185,7 @@ This code helps pick the right puts and calls to sell, tracks your positions, an
 * **Intelligent Scoring**: Ranks options by annualized return discounted by assignment probability
 * **Multi-Position Support**: Allows multiple put positions per symbol for dollar-cost averaging
 * **Cost Basis Adjustment**: Uses collected call premiums to lower effective cost basis for better exits
+* **Automatic Rolling**: Rolls short puts before expiration based on configurable criteria (opt-in feature)
 
 ---
 
@@ -319,10 +334,27 @@ The core logic is defined in `core/strategy.py`, with enhanced features in `core
 
 * Implement logic to cut losses if a stock price falls sharply after assignment, protecting capital from downside.
 
-### Rolling Short Puts as Expiration Nears
+### Rolling Short Puts as Expiration Nears (Now Implemented!)
 
-* Instead of letting puts expire or get assigned, roll them forward to the next expiration or down to lower strikes to capture additional premium and manage risk.
-* (For more, see [this Learn article](https://alpaca.markets/learn/options-wheel-strategy).)
+* **Automatic Rolling**: The strategy now supports automatic rolling of short puts before expiration
+* **Flexible Configuration**: Enable rolling globally or per-symbol with customizable parameters:
+  - `days_before_expiry`: When to consider rolling (default: 1 day)
+  - `min_premium_to_roll`: Minimum premium required to execute a roll
+  - `roll_delta_target`: Target delta for new positions
+* **Rolling Strategies**:
+  - **Forward**: Roll to same or higher strike with later expiration
+  - **Down**: Roll to lower strike to improve assignment probability
+  - **Both**: Choose best available option based on scoring
+* **Symbol-Specific Control**: Each symbol can have its own rolling settings and strategy
+* **Full Tracking**: All rolls are logged in the database and strategy logs for analysis
+
+To enable rolling:
+1. Run `python scripts/config_manager.py`
+2. Select option 6 to configure rolling settings
+3. Enable globally or per-symbol as desired
+4. The system will automatically roll eligible positions on each run
+
+(For more on rolling strategies, see [this Learn article](https://alpaca.markets/learn/options-wheel-strategy).)
 
 ---
 

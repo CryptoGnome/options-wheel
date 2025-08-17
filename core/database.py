@@ -90,7 +90,7 @@ class WheelDatabase:
                 CREATE TABLE IF NOT EXISTS trade_history (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     symbol TEXT NOT NULL,
-                    trade_type TEXT NOT NULL,  -- 'sell_put', 'sell_call', 'buy_stock', 'sell_stock'
+                    trade_type TEXT NOT NULL,  -- 'sell_put', 'sell_call', 'buy_stock', 'sell_stock', 'buy_to_close', 'roll'
                     quantity INTEGER NOT NULL,
                     price REAL NOT NULL,
                     strike_price REAL,

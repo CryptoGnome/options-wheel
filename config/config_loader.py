@@ -83,6 +83,28 @@ class StrategyConfig:
             "score_min": 0.05
         })
     
+    def get_rolling_settings(self) -> dict:
+        """Get global rolling settings"""
+        return self.config.get("rolling_settings", {
+            "enabled": False,
+            "days_before_expiry": 1,
+            "min_premium_to_roll": 0.05,
+            "roll_delta_target": 0.25
+        })
+    
+    def is_rolling_enabled_for_symbol(self, symbol: str) -> bool:
+        """Check if rolling is enabled for a specific symbol"""
+        global_enabled = self.get_rolling_settings().get("enabled", False)
+        symbol_config = self.config.get("symbols", {}).get(symbol, {})
+        symbol_rolling = symbol_config.get("rolling", {})
+        return symbol_rolling.get("enabled", global_enabled)
+    
+    def get_rolling_strategy_for_symbol(self, symbol: str) -> str:
+        """Get rolling strategy for a specific symbol (forward, down, or both)"""
+        symbol_config = self.config.get("symbols", {}).get(symbol, {})
+        symbol_rolling = symbol_config.get("rolling", {})
+        return symbol_rolling.get("strategy", "forward")
+    
     def update_symbol(self, symbol: str, enabled: bool = None, contracts: int = None):
         """Update symbol configuration"""
         if symbol not in self.config["symbols"]:

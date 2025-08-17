@@ -68,6 +68,13 @@ class StrategyLogger:
             if self.log_entry.get("sold_puts") is None:
                 self.log_entry["sold_puts"] = []
             self.log_entry["sold_puts"].append(put_dict)
+    
+    def log_roll(self, roll_info: dict):
+        """Log option roll transactions"""
+        if self.enabled:
+            if self.log_entry.get("rolls") is None:
+                self.log_entry["rolls"] = []
+            self.log_entry["rolls"].append(roll_info)
 
     def save(self):
         if not self.enabled:

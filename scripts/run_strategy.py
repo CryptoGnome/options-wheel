@@ -3,6 +3,7 @@ from core.broker_client import BrokerClient
 from core.execution import sell_puts, sell_calls
 from core.state_manager import update_state, calculate_risk, count_positions_by_symbol
 from core.database import WheelDatabase
+from core.rolling import process_rolls
 from config.credentials import ALPACA_API_KEY, ALPACA_SECRET_KEY, IS_PAPER, strategy_config
 from strategy_logging.strategy_logger import StrategyLogger
 from strategy_logging.logger_setup import setup_logger
@@ -42,6 +43,14 @@ def main():
     else:
         positions = client.get_positions()
         strat_logger.add_current_positions(positions)
+
+        # Process any rolls first (before calculating risk and states)
+        rolls_executed = process_rolls(client, positions, strategy_config, db, strat_logger)
+        if rolls_executed > 0:
+            logger.info(f"Executed {rolls_executed} roll(s), refreshing positions")
+            # Refresh positions after rolling
+            positions = client.get_positions()
+            strat_logger.add_current_positions(positions)
 
         current_risk = calculate_risk(positions)
         position_counts = count_positions_by_symbol(positions)

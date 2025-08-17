@@ -51,6 +51,12 @@ class BrokerClient:
             symbol=symbol, qty=qty, side='sell', type='market', time_in_force='day'
         )
         self.trade_client.submit_order(req)
+    
+    def market_buy(self, symbol, qty=1):
+        req = MarketOrderRequest(
+            symbol=symbol, qty=qty, side='buy', type='market', time_in_force='day'
+        )
+        self.trade_client.submit_order(req)
 
     def get_option_snapshot(self, symbol):
         if isinstance(symbol, str):

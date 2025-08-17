@@ -23,20 +23,31 @@ def main():
         print(f"  Delta: {filters['delta_min']:.2f} - {filters['delta_max']:.2f}")
         print(f"  DTE: {filters['expiration_min_days']} - {filters['expiration_max_days']} days")
         print(f"  Min OI: {filters['open_interest_min']}")
+        
+        rolling = config.get_rolling_settings()
+        print(f"\nRolling Settings:")
+        print(f"  Global Enabled: {rolling['enabled']}")
+        print(f"  Days Before Expiry: {rolling['days_before_expiry']}")
+        print(f"  Min Premium: ${rolling['min_premium_to_roll']:.2f}")
         print("\nEnabled Symbols:")
         
         symbols = config.config.get("symbols", {})
         for symbol, settings in symbols.items():
             if settings.get("enabled", True):
                 contracts = settings.get("contracts", config.config.get("default_contracts", 1))
-                print(f"  {symbol}: {contracts} contract(s)")
+                rolling_info = settings.get("rolling", {})
+                roll_enabled = rolling_info.get("enabled", rolling['enabled'])
+                roll_strategy = rolling_info.get("strategy", "forward")
+                roll_str = f" [Roll: {roll_strategy}]" if roll_enabled else ""
+                print(f"  {symbol}: {contracts} contract(s){roll_str}")
         
         print("\n1. Add/Edit Symbol")
         print("2. Remove Symbol")
         print("3. Change Balance Settings")
         print("4. Change Option Filters")
         print("5. Change Default Contracts")
-        print("6. View Full JSON Config")
+        print("6. Configure Rolling Settings")
+        print("7. View Full JSON Config")
         print("0. Exit")
         
         choice = input("\nEnter choice: ").strip()
@@ -45,6 +56,21 @@ def main():
             symbol = input("Enter symbol: ").upper().strip()
             contracts = input(f"Contracts for {symbol} (default 1): ").strip()
             contracts = int(contracts) if contracts else 1
+            
+            # Ask about rolling
+            enable_roll = input(f"Enable rolling for {symbol}? (y/n, default n): ").strip().lower()
+            if enable_roll == 'y':
+                roll_strategy = input("Rolling strategy (forward/down/both, default forward): ").strip().lower()
+                if roll_strategy not in ['forward', 'down', 'both']:
+                    roll_strategy = 'forward'
+                
+                if symbol not in config.config["symbols"]:
+                    config.config["symbols"][symbol] = {}
+                config.config["symbols"][symbol]["rolling"] = {
+                    "enabled": True,
+                    "strategy": roll_strategy
+                }
+            
             config.update_symbol(symbol, enabled=True, contracts=contracts)
             print(f"✓ Added/Updated {symbol} with {contracts} contract(s)")
             
@@ -139,6 +165,62 @@ def main():
                 print("Invalid input")
                 
         elif choice == "6":
+            print("\nRolling Configuration:")
+            print("1. Toggle Global Rolling")
+            print("2. Change Days Before Expiry")
+            print("3. Change Minimum Premium to Roll")
+            print("4. Configure Symbol-Specific Rolling")
+            sub_choice = input("Enter choice: ").strip()
+            
+            if sub_choice == "1":
+                current = config.config.get("rolling_settings", {}).get("enabled", False)
+                config.config.setdefault("rolling_settings", {})["enabled"] = not current
+                config.save()
+                print(f"✓ Global rolling {'enabled' if not current else 'disabled'}")
+            
+            elif sub_choice == "2":
+                days = input("Enter days before expiry to roll (1-7): ").strip()
+                try:
+                    days = int(days)
+                    if 1 <= days <= 7:
+                        config.config.setdefault("rolling_settings", {})["days_before_expiry"] = days
+                        config.save()
+                        print(f"✓ Set days before expiry to {days}")
+                except ValueError:
+                    print("Invalid input")
+            
+            elif sub_choice == "3":
+                premium = input("Enter minimum premium to roll ($): ").strip()
+                try:
+                    premium = float(premium)
+                    if premium >= 0:
+                        config.config.setdefault("rolling_settings", {})["min_premium_to_roll"] = premium
+                        config.save()
+                        print(f"✓ Set minimum premium to ${premium:.2f}")
+                except ValueError:
+                    print("Invalid input")
+            
+            elif sub_choice == "4":
+                symbol = input("Enter symbol to configure: ").upper().strip()
+                if symbol in config.config.get("symbols", {}):
+                    enable = input(f"Enable rolling for {symbol}? (y/n): ").strip().lower()
+                    if enable == 'y':
+                        strategy = input("Strategy (forward/down/both): ").strip().lower()
+                        if strategy in ['forward', 'down', 'both']:
+                            config.config["symbols"][symbol].setdefault("rolling", {})
+                            config.config["symbols"][symbol]["rolling"]["enabled"] = True
+                            config.config["symbols"][symbol]["rolling"]["strategy"] = strategy
+                            config.save()
+                            print(f"✓ Enabled {strategy} rolling for {symbol}")
+                    else:
+                        if "rolling" in config.config["symbols"][symbol]:
+                            config.config["symbols"][symbol]["rolling"]["enabled"] = False
+                            config.save()
+                            print(f"✓ Disabled rolling for {symbol}")
+                else:
+                    print(f"Symbol {symbol} not found")
+        
+        elif choice == "7":
             print("\n" + json.dumps(config.config, indent=2))
             input("\nPress Enter to continue...")
             
