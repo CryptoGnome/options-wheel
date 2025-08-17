@@ -1,7 +1,7 @@
 from pathlib import Path
 from core.broker_client import BrokerClient
 from core.execution import sell_puts, sell_calls
-from core.state_manager import update_state, calculate_risk, count_positions_by_symbol
+from core.thread_safe_manager import get_state_manager
 from core.database import WheelDatabase
 from core.rolling import process_rolls
 from config.credentials import ALPACA_API_KEY, ALPACA_SECRET_KEY, IS_PAPER, strategy_config
@@ -16,6 +16,7 @@ def main():
     strat_logger = StrategyLogger(enabled=args.strat_log)  # custom JSON logger used to persist strategy-specific state (e.g. trades, symbols, PnL).
     logger = setup_logger(level=args.log_level, to_file=args.log_to_file) # standard Python logger used for general runtime messages, debugging, and error reporting.
     db = WheelDatabase()  # SQLite database for tracking positions and premiums
+    state_manager = get_state_manager()  # Thread-safe state manager
 
     strat_logger.set_fresh_start(args.fresh_start)
 
@@ -52,10 +53,10 @@ def main():
             positions = client.get_positions()
             strat_logger.add_current_positions(positions)
 
-        current_risk = calculate_risk(positions)
-        position_counts = count_positions_by_symbol(positions)
-        
-        states = update_state(positions)
+        # Use thread-safe state manager
+        current_risk = state_manager.calculate_risk(positions)
+        position_counts = state_manager.count_positions_by_symbol(positions)
+        states = state_manager.update_state(positions)
         strat_logger.add_state_dict(states)
 
         # Sell calls on any long shares
@@ -69,22 +70,18 @@ def main():
                 
                 sell_calls(client, symbol, state["price"], state["qty"], db, strat_logger)
 
-        # Determine which symbols can have more positions
+        # Determine which symbols can have more positions (thread-safe)
         allowed_symbols = []
+        max_layers = strategy_config.get_max_wheel_layers()
+        
         for symbol in SYMBOLS:
-            # Get current positions for this symbol
-            symbol_positions = position_counts.get(symbol, {})
-            put_count = symbol_positions.get('puts', 0)
-            share_lots = symbol_positions.get('shares', 0)  # Number of 100-share lots
-            
-            # Calculate current wheel layers (each lot of shares + its puts counts as a layer)
-            current_layers = max(put_count, share_lots)
-            max_layers = strategy_config.get_max_wheel_layers()
-            
-            # Allow new puts if under max wheel layers
-            if current_layers < max_layers:
+            if state_manager.is_position_allowed(symbol, max_layers):
                 allowed_symbols.append(symbol)
-                if symbol in position_counts:
+                symbol_positions = state_manager.get_position_count(symbol)
+                put_count = symbol_positions.get('puts', 0)
+                share_lots = symbol_positions.get('shares', 0)
+                current_layers = max(put_count, share_lots)
+                if current_layers > 0:
                     logger.info(f"{symbol}: {current_layers}/{max_layers} wheel layers active")
         
         # Calculate available buying power
@@ -103,6 +100,10 @@ def main():
         sell_puts(client, allowed_symbols, buying_power, db=db, strat_logger=strat_logger)
 
     strat_logger.save()
+    
+    # Cleanup
+    if db:
+        db.close()
     
     # Log database summary
     if db:

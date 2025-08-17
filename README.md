@@ -1,7 +1,26 @@
-# Automated Wheel Strategy
+# Automated Wheel Strategy (Production-Ready)
 
 Welcome to the Wheel Strategy automation project!
-This script is designed to help you trade the classic ["wheel" options strategy](https://alpaca.markets/learn/options-wheel-strategy) with as little manual work as possible using the [Alpaca Trading API](https://docs.alpaca.markets/).
+This production-ready bot automates the classic ["wheel" options strategy](https://alpaca.markets/learn/options-wheel-strategy) using the [Alpaca Trading API](https://docs.alpaca.markets/).
+
+## 🚀 Recent Major Improvements (December 2024)
+
+- **Enterprise-Grade Error Handling**: Retry logic with exponential backoff, circuit breakers, and automatic recovery
+- **Thread-Safe Operations**: Prevents race conditions with thread-safe state management and database operations
+- **Enhanced Reliability**: WAL mode for database, connection pooling, and transaction management
+- **API Response Validation**: Comprehensive validation of all broker API responses
+- **Production Monitoring**: Advanced logging, error tracking, and performance metrics
+
+---
+
+## ⚠️ Important Production Considerations
+
+**Before running with real money:**
+1. Test thoroughly in paper trading mode for at least 2-4 weeks
+2. Start with conservative settings (low allocation percentage, high delta)
+3. Monitor the bot closely for the first few days
+4. Review the risk management settings in `config/strategy_config.json`
+5. Ensure you understand options trading risks (see disclaimers at bottom)
 
 ---
 
@@ -54,7 +73,7 @@ This code helps pick the right puts and calls to sell, tracks your positions, an
    ```json
    {
      "balance_settings": {
-       "allocation_percentage": 0.5,  // Use 50% of account balance
+       "allocation_percentage": 0.5,  // Use 50% of account balance (RECOMMENDED: Start with 0.3 or less)
        "max_wheel_layers": 2          // Run up to 2 wheel cycles per symbol
      },
      "option_filters": {
@@ -187,6 +206,16 @@ This code helps pick the right puts and calls to sell, tracks your positions, an
 * **Cost Basis Adjustment**: Uses collected call premiums to lower effective cost basis for better exits
 * **Automatic Rolling**: Rolls short puts before expiration based on configurable criteria (opt-in feature)
 
+### 🔒 Reliability & Safety Features
+
+* **Automatic Retry Logic**: All API calls retry up to 3 times with exponential backoff
+* **Circuit Breaker Pattern**: Prevents cascading failures by temporarily disabling failing endpoints
+* **Thread-Safe State Management**: Prevents race conditions with proper locking mechanisms
+* **Database Reliability**: WAL mode enabled, automatic retry on locks, transaction management
+* **Comprehensive Error Handling**: Graceful degradation and detailed error logging
+* **API Response Validation**: All responses validated for completeness and correctness
+* **Resource Cleanup**: Proper connection management and cleanup on shutdown
+
 ---
 
 ### Notes
@@ -277,6 +306,37 @@ These results are based on historical, simulated trading in a paper account over
 
 ---
 
+## Architecture & Reliability
+
+### Error Handling System
+
+The bot includes enterprise-grade error handling:
+
+1. **Retry Decorator** (`core/retry_decorator.py`):
+   - Exponential backoff with jitter
+   - Configurable retry attempts
+   - Circuit breaker pattern implementation
+
+2. **Thread-Safe State Manager** (`core/thread_safe_manager.py`):
+   - Singleton pattern for global state
+   - Reentrant locks for nested operations
+   - Protected methods for all state modifications
+
+3. **Database Resilience**:
+   - WAL (Write-Ahead Logging) mode for better concurrency
+   - Connection pooling with thread-local storage
+   - Automatic retry on database locks
+   - IMMEDIATE transaction mode to prevent deadlocks
+
+### Monitoring & Debugging
+
+* **Structured Logging**: Separate runtime and strategy logs
+* **Database Viewer**: Interactive tool for monitoring positions and performance
+* **Error Tracking**: All errors logged with context for debugging
+* **Performance Metrics**: Track API latency, retry counts, and success rates
+
+---
+
 ## Core Strategy Logic
 
 The core logic is defined in `core/strategy.py`, with enhanced features in `core/database.py` for tracking.
@@ -308,6 +368,29 @@ The core logic is defined in `core/strategy.py`, with enhanced features in `core
   - Sell covered call for $2 premium → Adjusted cost basis: $98
   - If call expires worthless, sell another for $1.50 → Adjusted cost basis: $96.50
   - System now targets call strikes ≥ $96.50 instead of $100 for better exit probability
+
+---
+
+## Testing & Validation
+
+The codebase includes comprehensive tests for critical components:
+
+```bash
+# Run all tests
+python tests/test_error_handling.py
+
+# Test specific components
+python tests/test_database.py
+python tests/test_strategy_logic.py
+python tests/test_risk_management.py
+```
+
+**Test Coverage:**
+- Retry logic and circuit breakers
+- Thread-safe state management
+- Database concurrent operations
+- API response validation
+- Risk management calculations
 
 ---
 
@@ -358,9 +441,47 @@ To enable rolling:
 
 ---
 
+## Troubleshooting
+
+### Common Issues
+
+1. **"Database is locked" errors**:
+   - The system automatically retries up to 3 times
+   - If persistent, check for other processes accessing the database
+
+2. **API failures**:
+   - Check circuit breaker status in logs
+   - Verify API credentials and network connectivity
+   - The system will automatically recover after timeout
+
+3. **Thread safety warnings**:
+   - Use the thread-safe state manager for all state operations
+   - Avoid direct database access outside of WheelDatabase class
+
+4. **High memory usage**:
+   - Rotate strategy logs regularly
+   - Archive old database records
+   - Monitor log file sizes
+
+### Performance Tuning
+
+- **Database**: Adjust `pool_size` and `timeout` in WheelDatabase initialization
+- **API Calls**: Configure circuit breaker thresholds in BrokerClient
+- **Retry Logic**: Adjust `max_attempts` and `base_delay` in retry decorators
+
+---
+
 ## Final Notes
 
-This is a great starting point for automating your trading, but always double-check your live trades — no system is completely hands-off.
+This production-ready bot includes enterprise-grade error handling, thread safety, and automatic recovery mechanisms. However, always monitor your live trades — no system is completely hands-off.
+
+**Key Safety Features:**
+- ✅ Automatic retry with exponential backoff
+- ✅ Circuit breaker pattern for API failures
+- ✅ Thread-safe state management
+- ✅ Database transaction management
+- ✅ Comprehensive error logging
+- ✅ Graceful degradation
 
 Happy wheeling! 🚀
 

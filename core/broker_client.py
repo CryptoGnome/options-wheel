@@ -7,6 +7,7 @@ _filters = _config.get_option_filters()
 EXPIRATION_MIN = _filters['expiration_min_days']
 EXPIRATION_MAX = _filters['expiration_max_days']
 from .user_agent_mixin import UserAgentMixin 
+from .retry_decorator import retry_on_failure, CircuitBreaker, RetryException
 from alpaca.trading.client import TradingClient
 from alpaca.data.historical.option import OptionHistoricalDataClient
 from alpaca.data.historical.stock import StockHistoricalDataClient, StockLatestTradeRequest
@@ -16,6 +17,15 @@ from alpaca.trading.enums import ContractType, AssetStatus, AssetClass
 from datetime import timedelta
 from zoneinfo import ZoneInfo
 import datetime
+import logging
+import requests
+from typing import Optional, List, Dict, Any
+
+logger = logging.getLogger(f"strategy.{__name__}")
+
+# Define retryable exceptions
+NETWORK_EXCEPTIONS = (requests.exceptions.RequestException, ConnectionError, TimeoutError)
+API_EXCEPTIONS = (Exception,)  # Alpaca API exceptions
 
 class TradingClientSigned(UserAgentMixin, TradingClient):
     pass
@@ -32,54 +42,149 @@ class BrokerClient:
         self.trade_client = TradingClientSigned(api_key=api_key, secret_key=secret_key, paper=paper)
         self.stock_client = StockHistoricalDataClientSigned(api_key=api_key, secret_key=secret_key)
         self.option_client = OptionHistoricalDataClientSigned(api_key=api_key, secret_key=secret_key)
+        
+        # Initialize circuit breakers for different API endpoints
+        self.circuit_breakers = {
+            'trading': CircuitBreaker(failure_threshold=3, recovery_timeout=60),
+            'market_data': CircuitBreaker(failure_threshold=5, recovery_timeout=30),
+            'options': CircuitBreaker(failure_threshold=5, recovery_timeout=30)
+        }
 
+    @retry_on_failure(max_attempts=3, exceptions=API_EXCEPTIONS)
     def get_positions(self):
-        return self.trade_client.get_all_positions()
+        """Get all positions with retry logic."""
+        try:
+            positions = self.circuit_breakers['trading'].call(
+                self.trade_client.get_all_positions
+            )
+            # Validate response
+            if positions is None:
+                raise ValueError("Received None from get_all_positions")
+            return positions
+        except Exception as e:
+            logger.error(f"Failed to get positions: {str(e)}")
+            raise
     
+    @retry_on_failure(max_attempts=3, exceptions=API_EXCEPTIONS)
     def get_account(self):
-        """Get account information including balances"""
-        return self.trade_client.get_account()
+        """Get account information including balances with retry logic."""
+        try:
+            account = self.circuit_breakers['trading'].call(
+                self.trade_client.get_account
+            )
+            # Validate response
+            if account is None:
+                raise ValueError("Received None from get_account")
+            if not hasattr(account, 'non_marginable_buying_power'):
+                raise ValueError("Invalid account response: missing non_marginable_buying_power")
+            return account
+        except Exception as e:
+            logger.error(f"Failed to get account: {str(e)}")
+            raise
     
-    def get_non_margin_buying_power(self):
-        """Get the non-marginable buying power (cash available for trading)"""
+    def get_non_margin_buying_power(self) -> float:
+        """Get the non-marginable buying power (cash available for trading) with validation."""
         account = self.get_account()
         # Use non_marginable_buying_power for cash-secured strategies
-        return float(account.non_marginable_buying_power)
+        buying_power = float(account.non_marginable_buying_power)
+        if buying_power < 0:
+            raise ValueError(f"Invalid buying power: {buying_power}")
+        return buying_power
 
-    def market_sell(self, symbol, qty=1):
+    @retry_on_failure(max_attempts=3, exceptions=API_EXCEPTIONS, base_delay=2.0)
+    def market_sell(self, symbol: str, qty: int = 1) -> Optional[Any]:
+        """Submit market sell order with retry logic and validation."""
+        if not symbol or qty <= 0:
+            raise ValueError(f"Invalid order parameters: symbol={symbol}, qty={qty}")
+        
         req = MarketOrderRequest(
             symbol=symbol, qty=qty, side='sell', type='market', time_in_force='day'
         )
-        self.trade_client.submit_order(req)
+        
+        try:
+            order = self.circuit_breakers['trading'].call(
+                self.trade_client.submit_order, req
+            )
+            logger.info(f"Market sell order placed: {symbol} qty={qty}")
+            return order
+        except Exception as e:
+            logger.error(f"Failed to place market sell order for {symbol}: {str(e)}")
+            raise
     
-    def market_buy(self, symbol, qty=1):
+    @retry_on_failure(max_attempts=3, exceptions=API_EXCEPTIONS, base_delay=2.0)
+    def market_buy(self, symbol: str, qty: int = 1) -> Optional[Any]:
+        """Submit market buy order with retry logic and validation."""
+        if not symbol or qty <= 0:
+            raise ValueError(f"Invalid order parameters: symbol={symbol}, qty={qty}")
+        
         req = MarketOrderRequest(
             symbol=symbol, qty=qty, side='buy', type='market', time_in_force='day'
         )
-        self.trade_client.submit_order(req)
+        
+        try:
+            order = self.circuit_breakers['trading'].call(
+                self.trade_client.submit_order, req
+            )
+            logger.info(f"Market buy order placed: {symbol} qty={qty}")
+            return order
+        except Exception as e:
+            logger.error(f"Failed to place market buy order for {symbol}: {str(e)}")
+            raise
 
-    def get_option_snapshot(self, symbol):
+    @retry_on_failure(max_attempts=3, exceptions=API_EXCEPTIONS)
+    def get_option_snapshot(self, symbol) -> Dict[str, Any]:
+        """Get option snapshot with retry logic and validation."""
         if isinstance(symbol, str):
             req = OptionSnapshotRequest(symbol_or_symbols=symbol)
-            return self.option_client.get_option_snapshot(req)
+            result = self.circuit_breakers['options'].call(
+                self.option_client.get_option_snapshot, req
+            )
+            if result is None:
+                logger.warning(f"No snapshot data for symbol: {symbol}")
+                return {}
+            return result
 
         elif isinstance(symbol, list):
+            if not symbol:
+                return {}
+            
             all_results = {}
             for i in range(0, len(symbol), 100):
                 batch = symbol[i:i+100]
                 req = OptionSnapshotRequest(symbol_or_symbols=batch)
-                result = self.option_client.get_option_snapshot(req)
-                all_results.update(result)
+                try:
+                    result = self.circuit_breakers['options'].call(
+                        self.option_client.get_option_snapshot, req
+                    )
+                    if result:
+                        all_results.update(result)
+                except Exception as e:
+                    logger.warning(f"Failed to get snapshot for batch {i//100 + 1}: {str(e)}")
+                    # Continue with other batches even if one fails
             
             return all_results
-
 
         else:
             raise ValueError("Input must be a string or list of strings representing symbols.")
 
-    def get_stock_latest_trade(self, symbol):
+    @retry_on_failure(max_attempts=3, exceptions=API_EXCEPTIONS)
+    def get_stock_latest_trade(self, symbol) -> Dict[str, Any]:
+        """Get latest stock trade with retry logic and validation."""
+        if not symbol:
+            raise ValueError("Symbol(s) required for latest trade request")
+        
         req = StockLatestTradeRequest(symbol_or_symbols=symbol)
-        return self.stock_client.get_stock_latest_trade(req)
+        try:
+            result = self.circuit_breakers['market_data'].call(
+                self.stock_client.get_stock_latest_trade, req
+            )
+            if result is None:
+                logger.warning(f"No trade data for symbol(s): {symbol}")
+                return {}
+            return result
+        except Exception as e:
+            logger.error(f"Failed to get latest trade for {symbol}: {str(e)}")
+            raise
 
     def get_options_contracts(self, underlying_symbols, contract_type=None):
         timezone = ZoneInfo("America/New_York")
@@ -116,15 +221,46 @@ class BrokerClient:
 
         return all_contracts
     
+    @retry_on_failure(max_attempts=3, exceptions=API_EXCEPTIONS)
     def liquidate_all_positions(self):
-        positions = self.get_positions()
-        to_liquidate = []
-        for p in positions:
-            if p.asset_class == AssetClass.US_OPTION:
-                self.trade_client.close_position(p.symbol)
-            else:
-                to_liquidate.append(p)
-        for p in to_liquidate:
-            self.trade_client.close_position(p.symbol)
+        """Liquidate all positions with error handling."""
+        try:
+            positions = self.get_positions()
+            if not positions:
+                logger.info("No positions to liquidate")
+                return
+            
+            options_closed = 0
+            stocks_closed = 0
+            errors = []
+            
+            # Close options first
+            for p in positions:
+                if p.asset_class == AssetClass.US_OPTION:
+                    try:
+                        self.trade_client.close_position(p.symbol)
+                        options_closed += 1
+                    except Exception as e:
+                        logger.error(f"Failed to close option position {p.symbol}: {str(e)}")
+                        errors.append((p.symbol, str(e)))
+            
+            # Then close stock positions
+            for p in positions:
+                if p.asset_class != AssetClass.US_OPTION:
+                    try:
+                        self.trade_client.close_position(p.symbol)
+                        stocks_closed += 1
+                    except Exception as e:
+                        logger.error(f"Failed to close stock position {p.symbol}: {str(e)}")
+                        errors.append((p.symbol, str(e)))
+            
+            logger.info(f"Liquidation complete: {options_closed} options, {stocks_closed} stocks closed")
+            
+            if errors:
+                logger.warning(f"Failed to close {len(errors)} positions: {errors}")
+                
+        except Exception as e:
+            logger.error(f"Critical error during liquidation: {str(e)}")
+            raise
 
 
