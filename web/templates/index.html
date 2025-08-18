@@ -514,8 +514,342 @@
         <div class="spinner"></div>
     </div>
 
+    <!-- First-Time Setup Wizard -->
+    <div class="setup-wizard" id="setupWizard">
+        <div class="setup-container">
+            <div class="setup-header">
+                <div class="setup-logo">
+                    <i class="ri-steering-2-fill"></i>
+                    <h1>Welcome to WheelForge</h1>
+                </div>
+                <p class="setup-subtitle">Let's get your options wheel strategy up and running in just a few steps</p>
+            </div>
+
+            <div class="setup-progress">
+                <div class="progress-bar">
+                    <div class="progress-fill" id="setupProgress"></div>
+                </div>
+                <div class="progress-steps">
+                    <div class="step active" data-step="1">
+                        <div class="step-number">1</div>
+                        <span>API Keys</span>
+                    </div>
+                    <div class="step" data-step="2">
+                        <div class="step-number">2</div>
+                        <span>Risk Settings</span>
+                    </div>
+                    <div class="step" data-step="3">
+                        <div class="step-number">3</div>
+                        <span>Symbols</span>
+                    </div>
+                    <div class="step" data-step="4">
+                        <div class="step-number">4</div>
+                        <span>Review</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="setup-content">
+                <!-- Step 1: API Configuration -->
+                <div class="setup-step active" id="step1">
+                    <h2>Connect to Alpaca</h2>
+                    <p class="step-description">First, we need your Alpaca API credentials. You can get these from your Alpaca dashboard.</p>
+                    
+                    <div class="setup-form">
+                        <div class="form-group">
+                            <label for="setupApiKey">
+                                <i class="ri-key-2-line"></i>
+                                API Key
+                                <span class="required">*</span>
+                            </label>
+                            <input type="text" id="setupApiKey" placeholder="PKxxxxxxxxxxxxx" required>
+                            <small>Found in your Alpaca dashboard under API Keys</small>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="setupSecretKey">
+                                <i class="ri-lock-password-line"></i>
+                                Secret Key
+                                <span class="required">*</span>
+                            </label>
+                            <input type="password" id="setupSecretKey" placeholder="Your secret key" required>
+                            <small>Keep this secure - it won't be shown again</small>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="radio-group">
+                                <i class="ri-shield-check-line"></i>
+                                Trading Mode
+                            </label>
+                            <div class="radio-options">
+                                <label class="radio-option">
+                                    <input type="radio" name="tradingMode" value="true" checked>
+                                    <div class="radio-card recommended">
+                                        <i class="ri-test-tube-line"></i>
+                                        <span class="radio-title">Paper Trading</span>
+                                        <span class="radio-desc">Test with virtual money first</span>
+                                        <span class="badge-recommended">Recommended</span>
+                                    </div>
+                                </label>
+                                <label class="radio-option">
+                                    <input type="radio" name="tradingMode" value="false">
+                                    <div class="radio-card">
+                                        <i class="ri-money-dollar-circle-line"></i>
+                                        <span class="radio-title">Live Trading</span>
+                                        <span class="radio-desc">Trade with real money</span>
+                                    </div>
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="alert alert-info">
+                            <i class="ri-information-line"></i>
+                            <div>
+                                <strong>New to Alpaca?</strong>
+                                <a href="https://app.alpaca.markets/signup" target="_blank">Sign up for free</a> and get instant access to paper trading.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Step 2: Risk Management -->
+                <div class="setup-step" id="step2">
+                    <h2>Risk Management Settings</h2>
+                    <p class="step-description">Configure how much capital to allocate and your risk parameters.</p>
+                    
+                    <div class="setup-form">
+                        <div class="form-group">
+                            <label for="setupAllocation">
+                                <i class="ri-percent-line"></i>
+                                Capital Allocation
+                                <span class="tooltip">
+                                    <i class="ri-information-line"></i>
+                                    <span class="tooltip-text">Percentage of your account to use for the wheel strategy</span>
+                                </span>
+                            </label>
+                            <div class="slider-group">
+                                <input type="range" id="setupAllocationSlider" min="10" max="100" value="30" step="5">
+                                <div class="slider-value">
+                                    <input type="number" id="setupAllocation" min="10" max="100" value="30">
+                                    <span>%</span>
+                                </div>
+                            </div>
+                            <small>Start conservative - you can always increase this later</small>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="setupWheelLayers">
+                                <i class="ri-stack-line"></i>
+                                Max Wheel Layers
+                                <span class="tooltip">
+                                    <i class="ri-information-line"></i>
+                                    <span class="tooltip-text">Number of concurrent wheel cycles per symbol for averaging down</span>
+                                </span>
+                            </label>
+                            <select id="setupWheelLayers">
+                                <option value="1">1 Layer - Single position per symbol</option>
+                                <option value="2" selected>2 Layers - Allow averaging down once</option>
+                                <option value="3">3 Layers - More aggressive positioning</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label>
+                                <i class="ri-line-chart-line"></i>
+                                Delta Range
+                                <span class="tooltip">
+                                    <i class="ri-information-line"></i>
+                                    <span class="tooltip-text">Probability of assignment - lower delta = lower risk</span>
+                                </span>
+                            </label>
+                            <div class="range-input-group">
+                                <input type="number" id="setupDeltaMin" value="0.15" step="0.05" min="0.05" max="0.5">
+                                <span>to</span>
+                                <input type="number" id="setupDeltaMax" value="0.30" step="0.05" min="0.1" max="0.5">
+                            </div>
+                            <small>0.15-0.30 is conservative, 0.30-0.45 is aggressive</small>
+                        </div>
+
+                        <div class="form-group">
+                            <label>
+                                <i class="ri-calendar-line"></i>
+                                Days to Expiry Range
+                            </label>
+                            <div class="range-input-group">
+                                <input type="number" id="setupDTEMin" value="0" min="0" max="45">
+                                <span>to</span>
+                                <input type="number" id="setupDTEMax" value="21" min="7" max="60">
+                            </div>
+                            <small>Shorter DTE = higher premium/time but more management</small>
+                        </div>
+
+                        <div class="alert alert-warning">
+                            <i class="ri-alert-line"></i>
+                            <div>
+                                <strong>Risk Notice:</strong>
+                                Start with conservative settings. You can always adjust after seeing how the strategy performs.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Step 3: Symbol Selection -->
+                <div class="setup-step" id="step3">
+                    <h2>Select Symbols to Trade</h2>
+                    <p class="step-description">Choose which stocks you want to run the wheel strategy on.</p>
+                    
+                    <div class="setup-form">
+                        <div class="symbol-quick-add">
+                            <h3>Popular Wheel Symbols</h3>
+                            <div class="symbol-suggestions">
+                                <button class="symbol-chip" data-symbol="SPY" data-contracts="1">
+                                    <span>SPY</span>
+                                    <small>S&P 500 ETF</small>
+                                </button>
+                                <button class="symbol-chip" data-symbol="QQQ" data-contracts="1">
+                                    <span>QQQ</span>
+                                    <small>Nasdaq ETF</small>
+                                </button>
+                                <button class="symbol-chip" data-symbol="AAPL" data-contracts="1">
+                                    <span>AAPL</span>
+                                    <small>Apple</small>
+                                </button>
+                                <button class="symbol-chip" data-symbol="MSFT" data-contracts="1">
+                                    <span>MSFT</span>
+                                    <small>Microsoft</small>
+                                </button>
+                                <button class="symbol-chip" data-symbol="TSLA" data-contracts="1">
+                                    <span>TSLA</span>
+                                    <small>Tesla</small>
+                                </button>
+                                <button class="symbol-chip" data-symbol="AMD" data-contracts="1">
+                                    <span>AMD</span>
+                                    <small>AMD</small>
+                                </button>
+                                <button class="symbol-chip" data-symbol="NVDA" data-contracts="1">
+                                    <span>NVDA</span>
+                                    <small>Nvidia</small>
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="custom-symbol-add">
+                            <h3>Add Custom Symbol</h3>
+                            <div class="input-group">
+                                <input type="text" id="setupCustomSymbol" placeholder="Enter symbol (e.g., AMZN)">
+                                <input type="number" id="setupCustomContracts" value="1" min="1" max="10">
+                                <button class="btn-add" id="addCustomSymbol">
+                                    <i class="ri-add-line"></i>
+                                    Add
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="selected-symbols">
+                            <h3>Selected Symbols</h3>
+                            <div id="selectedSymbolsList" class="symbols-list">
+                                <div class="empty-state">
+                                    <i class="ri-stock-line"></i>
+                                    <p>No symbols selected yet</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="alert alert-info">
+                            <i class="ri-information-line"></i>
+                            <div>
+                                <strong>Symbol Selection Tips:</strong>
+                                <ul>
+                                    <li>Start with 2-3 liquid symbols you understand</li>
+                                    <li>ETFs like SPY and QQQ are good for beginners</li>
+                                    <li>Ensure symbols have good options volume</li>
+                                    <li>Each contract = 100 shares commitment</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Step 4: Review & Launch -->
+                <div class="setup-step" id="step4">
+                    <h2>Review Your Configuration</h2>
+                    <p class="step-description">Double-check your settings before starting.</p>
+                    
+                    <div class="setup-review">
+                        <div class="review-section">
+                            <h3><i class="ri-key-2-line"></i> API Configuration</h3>
+                            <div class="review-items">
+                                <div class="review-item">
+                                    <span>API Key:</span>
+                                    <strong id="reviewApiKey">PKxxx...xxx</strong>
+                                </div>
+                                <div class="review-item">
+                                    <span>Mode:</span>
+                                    <strong id="reviewMode">Paper Trading</strong>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="review-section">
+                            <h3><i class="ri-shield-line"></i> Risk Settings</h3>
+                            <div class="review-items">
+                                <div class="review-item">
+                                    <span>Capital Allocation:</span>
+                                    <strong id="reviewAllocation">30%</strong>
+                                </div>
+                                <div class="review-item">
+                                    <span>Max Wheel Layers:</span>
+                                    <strong id="reviewLayers">2</strong>
+                                </div>
+                                <div class="review-item">
+                                    <span>Delta Range:</span>
+                                    <strong id="reviewDelta">0.15 - 0.30</strong>
+                                </div>
+                                <div class="review-item">
+                                    <span>DTE Range:</span>
+                                    <strong id="reviewDTE">0 - 21 days</strong>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="review-section">
+                            <h3><i class="ri-stock-line"></i> Selected Symbols</h3>
+                            <div class="review-symbols" id="reviewSymbols">
+                                <!-- Symbols will be listed here -->
+                            </div>
+                        </div>
+
+                        <div class="alert alert-success">
+                            <i class="ri-check-line"></i>
+                            <div>
+                                <strong>Ready to go!</strong>
+                                Your configuration will be saved and you can start trading immediately.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="setup-footer">
+                <button class="btn-secondary" id="setupBack" style="display: none;">
+                    <i class="ri-arrow-left-line"></i>
+                    Back
+                </button>
+                <button class="btn-primary" id="setupNext">
+                    Next
+                    <i class="ri-arrow-right-line"></i>
+                </button>
+                <button class="btn-success" id="setupComplete" style="display: none;">
+                    <i class="ri-rocket-line"></i>
+                    Launch WheelForge
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/notyf@3/notyf.min.js"></script>
+    <script src="{{ url_for('static', filename='js/setup-wizard.js') }}"></script>
     <script src="{{ url_for('static', filename='js/modern-dashboard.js') }}"></script>
 </body>
 </html>

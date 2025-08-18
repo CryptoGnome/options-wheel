@@ -525,6 +525,96 @@ def stop_strategy():
     
     return jsonify({'status': 'not_running'})
 
+@app.route('/api/setup/status')
+def setup_status():
+    """Check if initial setup is needed"""
+    env_path = Path(__file__).parent / '.env'
+    config_path = Path(__file__).parent / 'config' / 'strategy_config.json'
+    
+    # Check if .env exists and has required keys
+    needs_setup = not env_path.exists()
+    
+    if env_path.exists():
+        with open(env_path, 'r') as f:
+            content = f.read()
+            if 'ALPACA_API_KEY' not in content or 'ALPACA_SECRET_KEY' not in content:
+                needs_setup = True
+    
+    return jsonify({
+        'needsSetup': needs_setup,
+        'hasEnv': env_path.exists(),
+        'hasConfig': config_path.exists()
+    })
+
+@app.route('/api/setup/complete', methods=['POST'])
+def complete_setup():
+    """Complete the initial setup process"""
+    try:
+        data = request.json
+        
+        # Create .env file
+        env_path = Path(__file__).parent / '.env'
+        env_content = f"""# Alpaca API Credentials
+ALPACA_API_KEY={data['credentials']['api_key']}
+ALPACA_SECRET_KEY={data['credentials']['secret_key']}
+IS_PAPER={'true' if data['credentials']['is_paper'] else 'false'}
+"""
+        
+        with open(env_path, 'w') as f:
+            f.write(env_content)
+        
+        # Create/update strategy_config.json
+        config_path = Path(__file__).parent / 'config' / 'strategy_config.json'
+        
+        # Ensure symbols have proper structure
+        symbols = {}
+        for symbol, settings in data['strategy'].get('symbols', {}).items():
+            symbols[symbol] = {
+                'enabled': settings.get('enabled', True),
+                'contracts': settings.get('contracts', 1),
+                'rolling': {
+                    'enabled': False,
+                    'strategy': 'both'
+                }
+            }
+        
+        strategy_config_data = {
+            'balance_settings': data['strategy']['balance_settings'],
+            'option_filters': data['strategy']['option_filters'],
+            'rolling_settings': data['strategy'].get('rolling_settings', {
+                'enabled': False,
+                'days_before_expiry': 1,
+                'min_premium_to_roll': 0.05,
+                'roll_delta_target': 0.25
+            }),
+            'symbols': symbols,
+            'default_contracts': 1
+        }
+        
+        with open(config_path, 'w') as f:
+            json.dump(strategy_config_data, f, indent=2)
+        
+        # Reload configurations
+        global ALPACA_API_KEY, ALPACA_SECRET_KEY, IS_PAPER, strategy_config
+        
+        # Re-import credentials
+        from config.credentials import ALPACA_API_KEY as NEW_KEY, ALPACA_SECRET_KEY as NEW_SECRET, IS_PAPER as NEW_PAPER
+        ALPACA_API_KEY = NEW_KEY
+        ALPACA_SECRET_KEY = NEW_SECRET
+        IS_PAPER = NEW_PAPER
+        
+        # Reload strategy config
+        strategy_config.reload()
+        
+        # Reinitialize components with new credentials
+        initialize_components()
+        
+        return jsonify({'status': 'success', 'message': 'Setup completed successfully'})
+        
+    except Exception as e:
+        logger.error(f"Setup error: {e}")
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
 @app.route('/api/config', methods=['GET', 'POST'])
 def api_config():
     """Get or update configuration"""

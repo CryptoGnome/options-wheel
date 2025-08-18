@@ -16,6 +16,29 @@
 
 ---
 
+## 🚀 Quick Start in 3 Minutes
+
+```bash
+# 1. Clone and enter directory
+git clone https://github.com/yourusername/wheelforge.git && cd wheelforge
+
+# 2. Install with one command
+pip install uv && uv venv && uv pip install -e . && uv pip install -r requirements_web.txt
+
+# 3. Launch the dashboard
+python web_app.py
+
+# 4. Open http://localhost:5000 - The setup wizard will guide you through everything!
+```
+
+**That's it!** The web interface will walk you through:
+- 🔑 Entering your Alpaca API keys
+- ⚙️ Configuring your strategy settings  
+- 📊 Selecting symbols to trade
+- ✅ Starting your first wheel strategy
+
+---
+
 ## 🎯 What is WheelForge?
 
 WheelForge is a production-ready automated trading platform that executes the options wheel strategy using the Alpaca Trading API. Built with reliability and profitability in mind, it features enterprise-grade error handling, intelligent position management, and sophisticated risk controls that go beyond basic wheel implementations.
