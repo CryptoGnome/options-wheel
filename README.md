@@ -1,6 +1,20 @@
 # WheelForge - Professional Options Wheel Strategy Platform
 
-An enterprise-grade automated trading system implementing the options wheel strategy with advanced position management, automatic rolling, and intelligent risk controls.
+<div align="center">
+  
+![WheelForge Dashboard](docs/images/ss1.png)
+
+**An enterprise-grade automated trading system with modern web dashboard**  
+*Implementing the options wheel strategy with advanced position management, automatic rolling, and intelligent risk controls*
+
+[![Python](https://img.shields.io/badge/Python-3.9%2B-blue)](https://www.python.org/)
+[![Alpaca API](https://img.shields.io/badge/Alpaca-Trading%20API-green)](https://alpaca.markets/)
+[![License](https://img.shields.io/badge/License-Educational-yellow)](LICENSE)
+[![Dashboard](https://img.shields.io/badge/Dashboard-Web%20Based-purple)](http://localhost:5000)
+
+</div>
+
+---
 
 ## 🎯 What is WheelForge?
 
