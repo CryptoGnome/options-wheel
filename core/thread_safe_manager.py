@@ -130,6 +130,10 @@ class ThreadSafeStateManager:
         """
         Check if a new position is allowed for a symbol.
         
+        A new wheel layer is only allowed when:
+        - No positions exist (layer 1), OR
+        - Shares are held from put assignment (allows layer 2+)
+        
         Args:
             symbol: Symbol to check
             max_layers: Maximum allowed wheel layers
@@ -141,8 +145,21 @@ class ThreadSafeStateManager:
             counts = self._position_counts.get(symbol, {'puts': 0, 'calls': 0, 'shares': 0})
             put_count = counts.get('puts', 0)
             share_lots = counts.get('shares', 0)
-            current_layers = max(put_count, share_lots)
-            return current_layers < max_layers
+            
+            # First layer: Allow if no positions exist
+            if put_count == 0 and share_lots == 0:
+                return True
+            
+            # Additional layers: Only allow if shares are held (from assignment)
+            # and total layers (including existing puts) is less than max
+            if share_lots > 0:
+                # Count active layers: existing puts + 1 (for the shares)
+                active_layers = put_count + 1
+                return active_layers < max_layers
+            
+            # If we have puts but no shares, don't allow more puts
+            # (waiting for assignment before allowing next layer)
+            return False
     
     def reset(self):
         """Reset all state data."""
