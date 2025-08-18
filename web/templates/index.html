@@ -1,206 +1,521 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>WheelForge Trading Dashboard</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
-    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    
+    <!-- Modern UI Libraries -->
+    <link href="https://cdn.jsdelivr.net/npm/remixicon@4.0.0/fonts/remixicon.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/notyf@3/notyf.min.css">
+    
+    <!-- Custom Styles -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/modern-dashboard.css') }}">
+    
+    <!-- Chart.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+    
+    <!-- Socket.io -->
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    
+    <!-- ApexCharts for advanced visualizations -->
+    <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
 </head>
 <body>
-    <div class="dashboard">
-        <!-- Header -->
-        <header class="header">
-            <div class="header-content">
-                <h1 class="logo">WheelForge</h1>
-                <div class="header-info">
-                    <span class="market-status" id="market-status">
-                        <span class="status-dot"></span>
-                        <span class="status-text">Checking...</span>
-                    </span>
-                    <span class="trading-mode" id="trading-mode">PAPER</span>
-                    <button class="btn-primary" id="strategy-toggle">Start Strategy</button>
+    <!-- Top Navigation Bar -->
+    <nav class="navbar">
+        <div class="navbar-container">
+            <div class="navbar-left">
+                <div class="logo">
+                    <i class="ri-steering-2-fill"></i>
+                    <span>WheelForge</span>
+                </div>
+                <div class="market-status" id="marketStatus">
+                    <span class="status-indicator"></span>
+                    <span class="status-text">Connecting...</span>
                 </div>
             </div>
-        </header>
+            
+            <div class="navbar-center">
+                <div class="nav-tabs">
+                    <button class="nav-tab active" data-section="overview">
+                        <i class="ri-dashboard-3-line"></i>
+                        <span>Overview</span>
+                    </button>
+                    <button class="nav-tab" data-section="positions">
+                        <i class="ri-briefcase-line"></i>
+                        <span>Positions</span>
+                    </button>
+                    <button class="nav-tab" data-section="analytics">
+                        <i class="ri-bar-chart-box-line"></i>
+                        <span>Analytics</span>
+                    </button>
+                    <button class="nav-tab" data-section="config">
+                        <i class="ri-settings-3-line"></i>
+                        <span>Config</span>
+                    </button>
+                </div>
+            </div>
+            
+            <div class="navbar-right">
+                <div class="trading-mode" id="tradingMode">
+                    <i class="ri-test-tube-line"></i>
+                    <span>PAPER</span>
+                </div>
+                <button class="theme-toggle" id="themeToggle" aria-label="Toggle theme">
+                    <i class="ri-sun-line" id="themeIcon"></i>
+                </button>
+                <button class="strategy-control" id="strategyControl">
+                    <i class="ri-play-circle-line"></i>
+                    <span>Start Strategy</span>
+                </button>
+            </div>
+        </div>
+    </nav>
 
-        <!-- Main Dashboard -->
-        <div class="dashboard-content">
-            <!-- Account Overview -->
-            <section class="card account-card">
-                <h2>Account Overview</h2>
-                <div class="metrics-grid">
-                    <div class="metric">
-                        <label>Portfolio Value</label>
-                        <div class="value" id="portfolio-value">$0.00</div>
+    <!-- Main Dashboard Container -->
+    <main class="dashboard-container">
+        
+        <!-- Overview Section -->
+        <section class="dashboard-section active" id="overview-section">
+            <!-- Key Metrics Row -->
+            <div class="metrics-row">
+                <div class="metric-card primary">
+                    <div class="metric-header">
+                        <span class="metric-label">Portfolio Value</span>
+                        <i class="ri-wallet-3-line"></i>
                     </div>
-                    <div class="metric">
-                        <label>Daily P&L</label>
-                        <div class="value" id="daily-pl">$0.00</div>
-                    </div>
-                    <div class="metric">
-                        <label>Cash Balance</label>
-                        <div class="value" id="cash-balance">$0.00</div>
-                    </div>
-                    <div class="metric">
-                        <label>Buying Power</label>
-                        <div class="value" id="buying-power">$0.00</div>
+                    <div class="metric-value" id="portfolioValue">$0.00</div>
+                    <div class="metric-change" id="portfolioChange">
+                        <span>0.00%</span>
                     </div>
                 </div>
-            </section>
-
-            <!-- Positions -->
-            <section class="card positions-card">
-                <h2>Active Positions</h2>
-                <div class="positions-container">
-                    <div class="position-tabs">
-                        <button class="tab-btn active" data-tab="options">Options</button>
-                        <button class="tab-btn" data-tab="stocks">Stocks</button>
+                
+                <div class="metric-card">
+                    <div class="metric-header">
+                        <span class="metric-label">Total P&L</span>
+                        <i class="ri-line-chart-line"></i>
                     </div>
-                    <div class="tab-content" id="options-tab">
-                        <table class="positions-table">
-                            <thead>
-                                <tr>
-                                    <th>Symbol</th>
-                                    <th>Type</th>
-                                    <th>Strike</th>
-                                    <th>Exp</th>
-                                    <th>DTE</th>
-                                    <th>Qty</th>
-                                    <th>Entry</th>
-                                    <th>Current</th>
-                                    <th>P&L</th>
-                                </tr>
-                            </thead>
-                            <tbody id="options-tbody">
-                                <tr><td colspan="9" class="empty">No option positions</td></tr>
-                            </tbody>
-                        </table>
-                    </div>
-                    <div class="tab-content hidden" id="stocks-tab">
-                        <table class="positions-table">
-                            <thead>
-                                <tr>
-                                    <th>Symbol</th>
-                                    <th>Shares</th>
-                                    <th>Avg Cost</th>
-                                    <th>Current</th>
-                                    <th>Value</th>
-                                    <th>P&L</th>
-                                    <th>State</th>
-                                </tr>
-                            </thead>
-                            <tbody id="stocks-tbody">
-                                <tr><td colspan="7" class="empty">No stock positions</td></tr>
-                            </tbody>
-                        </table>
+                    <div class="metric-value" id="totalPnL">$0.00</div>
+                    <div class="metric-subtext">
+                        <span>Daily: </span>
+                        <span id="dailyPnL">$0.00</span>
                     </div>
                 </div>
-            </section>
-
-            <!-- Strategy Matrix -->
-            <section class="card strategy-card">
-                <h2>Strategy Matrix</h2>
-                <div class="strategy-grid" id="strategy-grid">
-                    <!-- Populated by JavaScript -->
+                
+                <div class="metric-card">
+                    <div class="metric-header">
+                        <span class="metric-label">Premium Income</span>
+                        <i class="ri-money-dollar-circle-line"></i>
+                    </div>
+                    <div class="metric-value" id="totalPremiums">$0.00</div>
+                    <div class="metric-subtext">
+                        <span>This Month: </span>
+                        <span id="monthlyPremiums">$0.00</span>
+                    </div>
                 </div>
-            </section>
+                
+                <div class="metric-card">
+                    <div class="metric-header">
+                        <span class="metric-label">Win Rate</span>
+                        <i class="ri-trophy-line"></i>
+                    </div>
+                    <div class="metric-value" id="winRate">0%</div>
+                    <div class="metric-subtext">
+                        <span id="totalTrades">0</span>
+                        <span> trades</span>
+                    </div>
+                </div>
+            </div>
 
-            <!-- Pending Orders -->
-            <section class="card orders-card">
-                <h2>Pending Orders</h2>
-                <div class="orders-container">
-                    <table class="orders-table">
+            <!-- Active Wheels Grid -->
+            <div class="content-grid">
+                <div class="card">
+                    <div class="card-header">
+                        <h3>Active Wheels</h3>
+                        <button class="btn-icon" id="refreshWheels">
+                            <i class="ri-refresh-line"></i>
+                        </button>
+                    </div>
+                    <div class="card-body">
+                        <div class="wheels-grid" id="wheelsGrid">
+                            <!-- Wheel cards will be inserted here -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Live Orders -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3>Pending Orders</h3>
+                        <div class="badge" id="pendingCount">0</div>
+                    </div>
+                    <div class="card-body">
+                        <div class="orders-list" id="ordersList">
+                            <div class="empty-state">
+                                <i class="ri-time-line"></i>
+                                <p>No pending orders</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Performance Chart -->
+            <div class="card chart-card">
+                <div class="card-header">
+                    <h3>Performance Overview</h3>
+                    <div class="chart-controls">
+                        <button class="chart-period active" data-period="1W">1W</button>
+                        <button class="chart-period" data-period="1M">1M</button>
+                        <button class="chart-period" data-period="3M">3M</button>
+                        <button class="chart-period" data-period="YTD">YTD</button>
+                        <button class="chart-period" data-period="ALL">ALL</button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div id="performanceChart"></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Positions Section -->
+        <section class="dashboard-section" id="positions-section">
+            <div class="positions-header">
+                <div class="positions-tabs">
+                    <button class="position-tab active" data-type="options">
+                        <i class="ri-file-list-3-line"></i>
+                        Options
+                        <span class="tab-count" id="optionsCount">0</span>
+                    </button>
+                    <button class="position-tab" data-type="stocks">
+                        <i class="ri-stock-line"></i>
+                        Stocks
+                        <span class="tab-count" id="stocksCount">0</span>
+                    </button>
+                </div>
+                <div class="positions-actions">
+                    <button class="btn-secondary" id="exportPositions">
+                        <i class="ri-download-2-line"></i>
+                        Export
+                    </button>
+                </div>
+            </div>
+
+            <!-- Options Positions Table -->
+            <div class="card position-table-card active" id="optionsTable">
+                <div class="table-responsive">
+                    <table class="data-table">
                         <thead>
                             <tr>
                                 <th>Symbol</th>
                                 <th>Type</th>
                                 <th>Strike</th>
-                                <th>Qty</th>
-                                <th>Limit</th>
-                                <th>Age</th>
-                                <th>Action</th>
+                                <th>Expiration</th>
+                                <th>DTE</th>
+                                <th>Quantity</th>
+                                <th>Entry</th>
+                                <th>Current</th>
+                                <th>P&L</th>
+                                <th>Actions</th>
                             </tr>
                         </thead>
-                        <tbody id="orders-tbody">
-                            <tr><td colspan="7" class="empty">No pending orders</td></tr>
+                        <tbody id="optionsTableBody">
+                            <!-- Rows will be inserted here -->
                         </tbody>
                     </table>
                 </div>
-            </section>
+            </div>
 
-            <!-- Total P&L Section -->
-            <section class="card pnl-card">
-                <h2>Total Performance</h2>
-                <div class="pnl-metrics-grid">
-                    <div class="metric highlight">
-                        <label>Total Realized P&L</label>
-                        <div class="value large" id="total-realized-pnl">$0.00</div>
-                    </div>
-                    <div class="metric">
-                        <label>Total Premiums</label>
-                        <div class="value" id="total-premiums">$0.00</div>
-                    </div>
-                    <div class="metric">
-                        <label>Win Rate</label>
-                        <div class="value" id="win-rate">0%</div>
-                    </div>
-                    <div class="metric">
-                        <label>Total Trades</label>
-                        <div class="value" id="total-trades">0</div>
-                    </div>
-                    <div class="metric">
-                        <label>Avg Premium</label>
-                        <div class="value" id="avg-premium">$0.00</div>
-                    </div>
-                    <div class="metric">
-                        <label>Active Symbols</label>
-                        <div class="value" id="active-symbols">0</div>
-                    </div>
-                </div>
-            </section>
-
-            <!-- P&L Chart -->
-            <section class="card chart-card">
-                <h2>P&L History</h2>
-                <div class="chart-tabs">
-                    <button class="chart-tab active" data-chart="cumulative">Cumulative P&L</button>
-                    <button class="chart-tab" data-chart="daily">Daily Income</button>
-                    <button class="chart-tab" data-chart="symbol">By Symbol</button>
-                </div>
-                <div class="chart-container">
-                    <canvas id="pnl-chart"></canvas>
-                </div>
-            </section>
-
-            <!-- Symbol Performance Table -->
-            <section class="card symbol-performance-card">
-                <h2>Performance by Symbol</h2>
-                <div class="symbol-performance-container">
-                    <table class="performance-table">
+            <!-- Stock Positions Table -->
+            <div class="card position-table-card" id="stocksTable">
+                <div class="table-responsive">
+                    <table class="data-table">
                         <thead>
                             <tr>
                                 <th>Symbol</th>
-                                <th>Total P&L</th>
-                                <th>Put Income</th>
-                                <th>Call Income</th>
-                                <th>Trades</th>
-                                <th>Avg/Trade</th>
+                                <th>Shares</th>
+                                <th>Avg Cost</th>
+                                <th>Current Price</th>
+                                <th>Market Value</th>
+                                <th>P&L</th>
+                                <th>P&L %</th>
+                                <th>State</th>
+                                <th>Actions</th>
                             </tr>
                         </thead>
-                        <tbody id="symbol-performance-tbody">
-                            <tr><td colspan="6" class="empty">No trading data available</td></tr>
+                        <tbody id="stocksTableBody">
+                            <!-- Rows will be inserted here -->
                         </tbody>
                     </table>
                 </div>
-            </section>
+            </div>
+        </section>
+
+        <!-- Analytics Section -->
+        <section class="dashboard-section" id="analytics-section">
+            <!-- Analytics Grid -->
+            <div class="analytics-grid">
+                <!-- P&L Breakdown -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3>P&L Breakdown</h3>
+                    </div>
+                    <div class="card-body">
+                        <div id="pnlBreakdownChart"></div>
+                    </div>
+                </div>
+
+                <!-- Symbol Performance -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3>Symbol Performance</h3>
+                    </div>
+                    <div class="card-body">
+                        <div id="symbolPerformanceChart"></div>
+                    </div>
+                </div>
+
+                <!-- Monthly Income -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3>Monthly Income</h3>
+                    </div>
+                    <div class="card-body">
+                        <div id="monthlyIncomeChart"></div>
+                    </div>
+                </div>
+
+                <!-- Strategy Statistics -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3>Strategy Statistics</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="stats-list">
+                            <div class="stat-item">
+                                <span class="stat-label">Average Premium</span>
+                                <span class="stat-value" id="avgPremium">$0.00</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-label">Put/Call Ratio</span>
+                                <span class="stat-value" id="putCallRatio">0:0</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-label">Avg Days to Expiry</span>
+                                <span class="stat-value" id="avgDTE">0</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-label">Assignment Rate</span>
+                                <span class="stat-value" id="assignmentRate">0%</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-label">Roll Success Rate</span>
+                                <span class="stat-value" id="rollRate">0%</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Detailed Performance Table -->
+            <div class="card">
+                <div class="card-header">
+                    <h3>Detailed Performance by Symbol</h3>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Symbol</th>
+                                    <th>Total P&L</th>
+                                    <th>Put Income</th>
+                                    <th>Call Income</th>
+                                    <th>Total Trades</th>
+                                    <th>Win Rate</th>
+                                    <th>Avg Premium</th>
+                                    <th>ROI</th>
+                                </tr>
+                            </thead>
+                            <tbody id="performanceTableBody">
+                                <!-- Rows will be inserted here -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Configuration Section -->
+        <section class="dashboard-section" id="config-section">
+            <div class="config-container">
+                <!-- Strategy Settings -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3>Strategy Settings</h3>
+                        <button class="btn-primary" id="saveConfig">
+                            <i class="ri-save-line"></i>
+                            Save Changes
+                        </button>
+                    </div>
+                    <div class="card-body">
+                        <form id="configForm">
+                            <div class="form-section">
+                                <h4>Balance Management</h4>
+                                <div class="form-grid">
+                                    <div class="form-group">
+                                        <label for="allocationPercentage">
+                                            Allocation Percentage
+                                            <span class="tooltip">
+                                                <i class="ri-information-line"></i>
+                                                <span class="tooltip-text">Percentage of non-margin balance to use</span>
+                                            </span>
+                                        </label>
+                                        <div class="input-group">
+                                            <input type="range" id="allocationRange" min="0" max="100" step="1">
+                                            <input type="number" id="allocationPercentage" min="0" max="100" step="1">
+                                            <span class="input-suffix">%</span>
+                                        </div>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="maxWheelLayers">
+                                            Max Wheel Layers
+                                            <span class="tooltip">
+                                                <i class="ri-information-line"></i>
+                                                <span class="tooltip-text">Maximum number of wheel cycles per symbol</span>
+                                            </span>
+                                        </label>
+                                        <input type="number" id="maxWheelLayers" min="1" max="5" step="1">
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="form-section">
+                                <h4>Option Filters</h4>
+                                <div class="form-grid">
+                                    <div class="form-group">
+                                        <label>Delta Range</label>
+                                        <div class="range-inputs">
+                                            <input type="number" id="deltaMin" step="0.01" placeholder="Min">
+                                            <span>to</span>
+                                            <input type="number" id="deltaMax" step="0.01" placeholder="Max">
+                                        </div>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Days to Expiry</label>
+                                        <div class="range-inputs">
+                                            <input type="number" id="dteMin" min="0" placeholder="Min">
+                                            <span>to</span>
+                                            <input type="number" id="dteMax" min="0" placeholder="Max">
+                                        </div>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Yield Range</label>
+                                        <div class="range-inputs">
+                                            <input type="number" id="yieldMin" step="0.01" placeholder="Min">
+                                            <span>to</span>
+                                            <input type="number" id="yieldMax" step="0.01" placeholder="Max">
+                                        </div>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="openInterestMin">Min Open Interest</label>
+                                        <input type="number" id="openInterestMin" min="0" step="10">
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="form-section">
+                                <h4>Rolling Settings</h4>
+                                <div class="form-grid">
+                                    <div class="form-group">
+                                        <label class="switch-label">
+                                            <input type="checkbox" id="rollingEnabled" class="switch-input">
+                                            <span class="switch-slider"></span>
+                                            <span>Enable Rolling</span>
+                                        </label>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="daysBeforeExpiry">Days Before Expiry</label>
+                                        <input type="number" id="daysBeforeExpiry" min="0" max="7">
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="minPremiumToRoll">Min Premium to Roll</label>
+                                        <input type="number" id="minPremiumToRoll" step="0.01">
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="rollDeltaTarget">Roll Delta Target</label>
+                                        <input type="number" id="rollDeltaTarget" step="0.01">
+                                    </div>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- Symbol Management -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3>Symbol Management</h3>
+                        <button class="btn-secondary" id="addSymbol">
+                            <i class="ri-add-line"></i>
+                            Add Symbol
+                        </button>
+                    </div>
+                    <div class="card-body">
+                        <div class="symbols-grid" id="symbolsGrid">
+                            <!-- Symbol cards will be inserted here -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Modals -->
+    <!-- Add Symbol Modal -->
+    <div class="modal" id="addSymbolModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Add New Symbol</h3>
+                <button class="modal-close" data-modal="addSymbolModal">
+                    <i class="ri-close-line"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <form id="addSymbolForm">
+                    <div class="form-group">
+                        <label for="newSymbol">Symbol</label>
+                        <input type="text" id="newSymbol" placeholder="e.g., AAPL" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="newSymbolContracts">Contracts</label>
+                        <input type="number" id="newSymbolContracts" min="1" value="1" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="switch-label">
+                            <input type="checkbox" id="newSymbolEnabled" class="switch-input" checked>
+                            <span class="switch-slider"></span>
+                            <span>Enabled</span>
+                        </label>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-secondary" data-modal="addSymbolModal">Cancel</button>
+                <button class="btn-primary" id="confirmAddSymbol">Add Symbol</button>
+            </div>
         </div>
     </div>
 
-    <!-- Notifications -->
-    <div class="notifications" id="notifications"></div>
+    <!-- Loading Overlay -->
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="spinner"></div>
+    </div>
 
-    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/notyf@3/notyf.min.js"></script>
+    <script src="{{ url_for('static', filename='js/modern-dashboard.js') }}"></script>
 </body>
 </html>

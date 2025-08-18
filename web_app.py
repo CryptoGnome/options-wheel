@@ -233,8 +233,31 @@ def get_performance_data():
         # Get cumulative P&L history for chart
         pnl_history = db.get_cumulative_pnl_history(days_back=90)
         
-        # Get performance by symbol
-        symbol_performance = db.get_performance_by_symbol()
+        # Get performance by symbol with enhanced metrics
+        symbol_performance = []
+        try:
+            raw_performance = db.get_performance_by_symbol()
+            for symbol_data in raw_performance:
+                symbol = symbol_data.get('symbol', 'Unknown')
+                put_premiums = symbol_data.get('put_premiums', 0)
+                call_premiums = symbol_data.get('call_premiums', 0)
+                put_trades = symbol_data.get('put_trades', 0)
+                call_trades = symbol_data.get('call_trades', 0)
+                total_pnl = put_premiums + call_premiums
+                total_trades_sym = put_trades + call_trades
+                
+                symbol_performance.append({
+                    'symbol': symbol,
+                    'total_pnl': total_pnl,
+                    'put_premiums': put_premiums,
+                    'call_premiums': call_premiums,
+                    'put_trades': put_trades,
+                    'call_trades': call_trades,
+                    'win_rate': 0,  # Calculate based on expired vs assigned
+                    'roi': 0  # Calculate based on capital used
+                })
+        except:
+            pass
         
         # Get recent premium history
         recent_premiums = db.get_premium_history(days_back=30)
@@ -264,11 +287,11 @@ def get_performance_data():
             'avg_premium': avg_premium,
             'symbols_traded': summary['symbols_traded'],
             'daily_premiums': daily_data,
-            'pnl_history': pnl_history,
-            'realized_pnl': realized_pnl,
+            'pnl_history': pnl_history if pnl_history else [],
+            'realized_pnl': realized_pnl if realized_pnl else {'total_realized': 0},
             'symbol_performance': symbol_performance,
             'win_rate': win_rate,
-            'total_realized_pnl': realized_pnl['total_realized']
+            'total_realized_pnl': realized_pnl.get('total_realized', 0) if realized_pnl else 0
         }
     except Exception as e:
         logger.error(f"Error getting performance data: {e}")
@@ -506,7 +529,8 @@ def stop_strategy():
 def api_config():
     """Get or update configuration"""
     if request.method == 'GET':
-        return jsonify(strategy_config.to_dict())
+        # Return the config dictionary directly
+        return jsonify(strategy_config.config)
     
     # POST - update config
     try:

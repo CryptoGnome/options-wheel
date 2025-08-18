@@ -31,6 +31,7 @@ The classic wheel strategy involves:
 - ✅ **Limit Order System** - Smart order management with automatic repricing for better fills
 - ✅ **Database Tracking** - SQLite database for all trades, premiums, and performance metrics
 - ✅ **Per-Symbol Configuration** - Customize contracts and settings for each ticker
+- ✅ **Modern Web Dashboard** - Real-time monitoring with dark/light mode and live config editing
 
 ### Reliability & Safety
 - 🔒 **Thread-Safe Operations** - Prevents race conditions with proper locking
@@ -38,6 +39,7 @@ The classic wheel strategy involves:
 - 💾 **Database Resilience** - WAL mode, connection pooling, transaction management
 - 📊 **Comprehensive Monitoring** - Detailed logging and performance tracking
 - ⚠️ **API Validation** - Validates all broker responses for completeness
+- 🌐 **WebSocket Updates** - Real-time position and order tracking via dashboard
 
 ## 🚀 Quick Start
 
@@ -49,6 +51,9 @@ cd wheelforge
 uv venv
 source .venv/bin/activate  # Or `.venv\Scripts\activate` on Windows
 uv pip install -e .
+
+# For web dashboard (optional but recommended)
+uv pip install -r requirements_web.txt
 ```
 
 ### 2. Configuration
@@ -60,10 +65,25 @@ ALPACA_SECRET_KEY=your_secret
 IS_PAPER=true  # Start with paper trading
 ```
 
-Configure strategy in `config/strategy_config.json` or use the interactive manager:
+Configure strategy using one of these methods:
+
+#### Option A: Web Dashboard (Recommended)
+```bash
+# Start the dashboard
+python web_app.py
+# Or use: start_dashboard.bat (Windows) / ./start_dashboard.sh (Mac/Linux)
+
+# Open http://localhost:5000 in your browser
+# Navigate to Config tab to edit all settings
+```
+
+#### Option B: Interactive CLI Manager
 ```bash
 python scripts/config_manager.py
 ```
+
+#### Option C: Direct JSON Edit
+Edit `config/strategy_config.json` manually
 
 ### 3. Run WheelForge
 
@@ -97,6 +117,16 @@ run-strategy-limit --once
 Custom settings:
 ```bash
 run-strategy-limit --update-interval 30 --cycle-interval 600
+```
+
+### 4. Monitor with Dashboard
+
+Open the web dashboard for real-time monitoring:
+```bash
+# Start dashboard
+python web_app.py
+
+# Open browser to http://localhost:5000
 ```
 
 ## 📈 Advanced Configuration
@@ -188,7 +218,25 @@ Tracks wheel states:
 
 ## 📊 Monitoring & Analytics
 
-### Database Viewer
+### Modern Web Dashboard
+Access comprehensive real-time monitoring at `http://localhost:5000`
+
+#### Dashboard Features
+- **📈 Overview Tab**: Key metrics, active wheels, performance charts
+- **💼 Positions Tab**: Live options and stock positions with P&L tracking
+- **📊 Analytics Tab**: Advanced charts, symbol performance, monthly income
+- **⚙️ Config Tab**: Edit all strategy settings without restarting
+
+#### Dashboard Capabilities
+- 🌓 **Dark/Light Mode**: Toggle between themes for comfortable viewing
+- 🔄 **Real-Time Updates**: WebSocket connection for instant data refresh
+- 📱 **Responsive Design**: Works on desktop, tablet, and mobile
+- 💾 **Live Config Editing**: Change settings and save directly from browser
+- 📈 **Interactive Charts**: Performance tracking with ApexCharts
+- 🔔 **Notifications**: Real-time alerts for trades and events
+- 📊 **Export Data**: Download positions and performance data
+
+### Database Viewer (CLI)
 ```bash
 # Overall performance summary
 python scripts/db_viewer.py --summary
@@ -206,6 +254,7 @@ python scripts/db_viewer.py --premiums --days 60
 ### Strategy Logs
 - **Runtime logs**: Console/file output for monitoring
 - **Strategy JSON logs**: Detailed trade analysis in `strategy_logging/`
+- **Web Dashboard logs**: Real-time event streaming via WebSocket
 
 ## 🤖 Automation
 
@@ -354,20 +403,104 @@ Monitor system health with built-in diagnostics:
 - Thread pool utilization
 - Database lock statistics
 
+## 🖥️ Web Dashboard Guide
+
+### Screenshots
+
+<div align="center">
+
+#### Dashboard Overview - Main Page
+![Dashboard Overview](docs/images/ss1.png)
+*Real-time portfolio metrics, active wheels, performance tracking, and pending orders*
+
+#### Configuration Editor
+![Configuration Editor](docs/images/ss2.png)
+*Edit strategy settings, manage symbols, adjust filters and parameters without restarting*
+
+#### Analytics & Performance
+![Analytics Charts](docs/images/ss3.png)
+*Advanced charts showing P&L breakdown, symbol performance, monthly income, and strategy statistics*
+
+#### Positions Management
+![Positions View](docs/images/ss4.png)
+*Live options and stock positions with real-time P&L tracking and position details*
+
+</div>
+
+### Starting the Dashboard
+
+#### Windows
+```bash
+# Double-click start_dashboard.bat
+# Or run:
+python web_app.py
+```
+
+#### Mac/Linux
+```bash
+# Make script executable (first time only)
+chmod +x start_dashboard.sh
+./start_dashboard.sh
+# Or run:
+python web_app.py
+```
+
+### Dashboard Navigation
+
+#### Overview Section
+- **Portfolio Metrics**: Total value, daily P&L, premium income, win rate
+- **Active Wheels Grid**: Visual representation of all active positions
+- **Pending Orders**: Live tracking with age progress bars
+- **Performance Chart**: Interactive chart with period selection (1W, 1M, 3M, YTD, ALL)
+
+#### Positions Section
+- **Options Table**: All option positions with real-time P&L
+- **Stocks Table**: Share positions with state tracking
+- **Export Function**: Download positions data as CSV
+
+#### Analytics Section
+- **P&L Breakdown**: Donut chart showing income sources
+- **Symbol Performance**: Bar chart comparing symbol profitability
+- **Monthly Income**: Track premium collection trends
+- **Strategy Statistics**: Key metrics like average premium, put/call ratio, assignment rate
+
+#### Configuration Section
+- **Balance Management**: Adjust allocation percentage with slider
+- **Option Filters**: Set delta, DTE, yield ranges
+- **Rolling Settings**: Configure automatic rolling parameters
+- **Symbol Management**: Add/remove/toggle symbols with contracts
+
+### Using the Dashboard
+
+1. **Start/Stop Strategy**: Use the control button in the top navigation
+2. **Toggle Theme**: Click sun/moon icon for dark/light mode
+3. **View Market Status**: Green dot = market open, red = closed
+4. **Real-Time Updates**: Data refreshes automatically via WebSocket
+5. **Save Configuration**: Changes in Config tab save to `strategy_config.json`
+
 ## 🔮 Roadmap & Ideas
 
 ### Current Development
-- [ ] Web dashboard for real-time monitoring
+- [x] ✅ Web dashboard for real-time monitoring (COMPLETED!)
 - [ ] Advanced Greeks analysis
 - [ ] Volatility-based position sizing
 - [ ] Multi-account support
 - [ ] Backtesting framework
+- [ ] Mobile app companion
+
+### Recent Additions
+- ✅ **Modern Dashboard**: Full-featured web interface with dark/light mode
+- ✅ **Live Config Editor**: Change settings without restarting
+- ✅ **WebSocket Updates**: Real-time position and order tracking
+- ✅ **Interactive Charts**: ApexCharts for advanced visualizations
+- ✅ **Responsive Design**: Works on all device sizes
 
 ### Community Contributions Welcome
 - Technical indicators integration
 - Alternative scoring algorithms
 - Risk management enhancements
 - Performance optimizations
+- Dashboard theme customization
 
 ## ⚠️ Risk Disclosure
 
