@@ -3,6 +3,21 @@ from .premium_tracker import PremiumTracker
 from alpaca.trading.enums import AssetClass
 from collections import defaultdict
 
+class WheelStateManager:
+    """Manager for tracking wheel strategy state"""
+    
+    def __init__(self):
+        self.state = {}
+    
+    def update_state(self, all_positions, premium_tracker=None):
+        """Update state based on current positions"""
+        self.state = update_state(all_positions, premium_tracker)
+        return self.state
+    
+    def get_state(self):
+        """Get current state"""
+        return self.state
+
 def calculate_risk(positions):
     """Calculate total risk from all positions"""
     risk = 0

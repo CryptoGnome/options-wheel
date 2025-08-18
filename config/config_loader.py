@@ -62,6 +62,10 @@ class StrategyConfig:
         symbol_config = self.config.get("symbols", {}).get(symbol, {})
         return symbol_config.get("contracts", self.config.get("default_contracts", 1))
     
+    def get_symbol_contracts(self, symbol: str) -> int:
+        """Alias for get_contracts_for_symbol for backward compatibility"""
+        return self.get_contracts_for_symbol(symbol)
+    
     def get_balance_allocation(self) -> float:
         """Get balance allocation percentage"""
         return self.config.get("balance_settings", {}).get("allocation_percentage", 0.5)

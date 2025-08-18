@@ -40,6 +40,7 @@ class OptionHistoricalDataClientSigned(UserAgentMixin, OptionHistoricalDataClien
 class BrokerClient:
     def __init__(self, api_key, secret_key, paper=True):
         self.trade_client = TradingClientSigned(api_key=api_key, secret_key=secret_key, paper=paper)
+        self.trading_client = self.trade_client  # Alias for backward compatibility
         self.stock_client = StockHistoricalDataClientSigned(api_key=api_key, secret_key=secret_key)
         self.option_client = OptionHistoricalDataClientSigned(api_key=api_key, secret_key=secret_key)
         
@@ -186,6 +187,41 @@ class BrokerClient:
             logger.error(f"Failed to get latest trade for {symbol}: {str(e)}")
             raise
 
+    def get_latest_quote(self, symbol):
+        """Get latest quote for a stock - alias for get_stock_latest_trade"""
+        return self.get_stock_latest_trade(symbol)
+    
+    def get_option_contracts(self, underlying_symbols, contract_type=None):
+        """Alias for get_options_contracts for backward compatibility"""
+        return self.get_options_contracts(underlying_symbols, contract_type)
+    
+    def get_stock_bars(self, symbol, timeframe='1Day', start=None, end=None):
+        """Get historical stock bars"""
+        from alpaca.data.requests import StockBarsRequest
+        from alpaca.data.timeframe import TimeFrame
+        
+        timeframe_map = {
+            '1Day': TimeFrame.Day,
+            '1Hour': TimeFrame.Hour,
+            '5Min': TimeFrame(5, 'Min')
+        }
+        
+        req = StockBarsRequest(
+            symbol_or_symbols=symbol,
+            timeframe=timeframe_map.get(timeframe, TimeFrame.Day),
+            start=start,
+            end=end
+        )
+        
+        try:
+            result = self.circuit_breakers['market_data'].call(
+                self.stock_client.get_stock_bars, req
+            )
+            return result
+        except Exception as e:
+            logger.error(f"Failed to get stock bars for {symbol}: {str(e)}")
+            raise
+    
     def get_options_contracts(self, underlying_symbols, contract_type=None):
         timezone = ZoneInfo("America/New_York")
         today = datetime.datetime.now(timezone).date()
