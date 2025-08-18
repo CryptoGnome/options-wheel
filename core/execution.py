@@ -1,4 +1,5 @@
 import logging
+import datetime
 from .strategy import filter_underlying, filter_options, score_options, select_options
 from .database import WheelDatabase
 from models.contract import Contract
@@ -39,13 +40,16 @@ def sell_puts(client, allowed_symbols, buying_power, position_counts=None, db=No
             
             # Track in database
             if db:
+                # Calculate expiration date from DTE
+                expiration_date = datetime.date.today() + datetime.timedelta(days=int(p.dte))
+                
                 db.add_premium(
                     symbol=p.underlying,
                     option_type='P',
                     strike_price=p.strike,
                     premium=p.bid_price,
                     contracts=1,
-                    expiration_date=p.expiration,
+                    expiration_date=expiration_date,
                     notes=f"Delta: {p.delta:.3f}, DTE: {p.dte}"
                 )
                 
@@ -55,7 +59,7 @@ def sell_puts(client, allowed_symbols, buying_power, position_counts=None, db=No
                     quantity=1,
                     price=p.bid_price,
                     strike_price=p.strike,
-                    expiration_date=p.expiration,
+                    expiration_date=expiration_date,
                     premium=p.bid_price
                 )
             
@@ -109,13 +113,16 @@ def sell_calls(client, symbol, purchase_price, stock_qty, db=None, strat_logger=
         
         # Track in database
         if db:
+            # Calculate expiration date from DTE
+            expiration_date = datetime.date.today() + datetime.timedelta(days=int(contract.dte))
+            
             db.add_premium(
                 symbol=symbol,
                 option_type='C',
                 strike_price=contract.strike,
                 premium=contract.bid_price,
                 contracts=1,
-                expiration_date=contract.expiration,
+                expiration_date=expiration_date,
                 notes=f"Delta: {contract.delta:.3f}, DTE: {contract.dte}"
             )
             
@@ -125,7 +132,7 @@ def sell_calls(client, symbol, purchase_price, stock_qty, db=None, strat_logger=
                 quantity=1,
                 price=contract.bid_price,
                 strike_price=contract.strike,
-                expiration_date=contract.expiration,
+                expiration_date=expiration_date,
                 premium=contract.bid_price
             )
             

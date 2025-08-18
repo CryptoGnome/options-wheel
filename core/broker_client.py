@@ -91,6 +91,15 @@ class BrokerClient:
         if buying_power < 0:
             raise ValueError(f"Invalid buying power: {buying_power}")
         return buying_power
+    
+    def get_options_buying_power(self) -> float:
+        """Get the buying power available for options trading."""
+        account = self.get_account()
+        # Use options_buying_power which accounts for existing positions
+        buying_power = float(account.options_buying_power)
+        if buying_power < 0:
+            raise ValueError(f"Invalid options buying power: {buying_power}")
+        return buying_power
 
     @retry_on_failure(max_attempts=3, exceptions=API_EXCEPTIONS, base_delay=2.0)
     def market_sell(self, symbol: str, qty: int = 1) -> Optional[Any]:

@@ -91,9 +91,15 @@ def update_state(all_positions, premium_tracker=None):
             underlying, option_type, _ = parse_option_symbol(p.symbol)
 
             if underlying in state:
-                if not (state[underlying]["type"] == "long_shares" and option_type == 'C'):
+                # Handle multiple puts (allowed for averaging down with max_wheel_layers)
+                if state[underlying]["type"] == "short_put" and option_type == 'P':
+                    # Multiple puts are allowed - keep the short_put state
+                    pass
+                elif state[underlying]["type"] == "long_shares" and option_type == 'C':
+                    # Shares + covered call = short_call state
+                    state[underlying]["type"] = "short_call"
+                else:
                     raise ValueError(f"Unexpected state for {underlying}: {state[underlying]} with option {option_type}")
-                state[underlying]["type"] = "short_call"
             else:
                 if option_type == "C":
                     state[underlying] = {"type": "short_call_awaiting_stock", "price": None}

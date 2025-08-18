@@ -34,7 +34,12 @@ def main():
     actual_balance = client.get_non_margin_buying_power()
     balance_allocation = strategy_config.get_balance_allocation()
     allocated_balance = actual_balance * balance_allocation
+    
+    # Get actual options buying power from Alpaca (accounts for existing positions)
+    options_buying_power = client.get_options_buying_power()
+    
     logger.info(f"Account balance: ${actual_balance:.2f}, Allocated for trading: ${allocated_balance:.2f} ({balance_allocation*100:.0f}%)")
+    logger.info(f"Options buying power: ${options_buying_power:.2f}")
     
     if args.fresh_start:
         logger.info("Running in fresh start mode — liquidating all positions.")
@@ -84,8 +89,9 @@ def main():
                 if current_layers > 0:
                     logger.info(f"{symbol}: {current_layers}/{max_layers} wheel layers active")
         
-        # Calculate available buying power
-        buying_power = allocated_balance - current_risk
+        # Use the actual options buying power from Alpaca, but cap it at our allocated amount
+        # This way we respect both Alpaca's risk calculations and our allocation percentage
+        buying_power = min(options_buying_power, allocated_balance)
         buying_power = max(0, buying_power)  # Ensure non-negative
     
     strat_logger.set_buying_power(buying_power)
