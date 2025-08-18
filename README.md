@@ -28,6 +28,7 @@ The classic wheel strategy involves:
 - ✅ **Multi-Layer Wheels** - Run multiple wheel cycles per symbol for dollar-cost averaging
 - ✅ **Cost Basis Optimization** - Tracks premiums to adjust cost basis for better exits
 - ✅ **Automatic Rolling** - Roll positions before expiration with configurable strategies
+- ✅ **Limit Order System** - Smart order management with automatic repricing for better fills
 - ✅ **Database Tracking** - SQLite database for all trades, premiums, and performance metrics
 - ✅ **Per-Symbol Configuration** - Customize contracts and settings for each ticker
 
@@ -66,6 +67,7 @@ python scripts/config_manager.py
 
 ### 3. Run WheelForge
 
+#### Market Orders (Original)
 First run (clean slate):
 ```bash
 run-strategy --fresh-start
@@ -79,6 +81,22 @@ run-strategy
 With full logging:
 ```bash
 run-strategy --strat-log --log-level DEBUG --log-to-file
+```
+
+#### Limit Orders (Recommended for Better Fills)
+Run continuously during market hours:
+```bash
+run-strategy-limit
+```
+
+Test with one cycle:
+```bash
+run-strategy-limit --once
+```
+
+Custom settings:
+```bash
+run-strategy-limit --update-interval 30 --cycle-interval 600
 ```
 
 ## 📈 Advanced Configuration
@@ -155,11 +173,18 @@ Tracks wheel states:
 - Position history
 - Performance metrics
 
-### Execution Engine (`core/execution.py`)
+### Execution Engine (`core/execution.py` & `core/execution_limit.py`)
 - Thread-safe trade execution
+- Choice of market or limit orders
 - Automatic retry with backoff
 - Circuit breaker protection
 - Transaction logging
+
+### Order Management (`core/order_manager.py`)
+- Tracks pending limit orders
+- Automatic price adjustments
+- Progressive repricing logic
+- Order lifecycle management
 
 ## 📊 Monitoring & Analytics
 
@@ -184,7 +209,10 @@ python scripts/db_viewer.py --premiums --days 60
 
 ## 🤖 Automation
 
-### Linux/Mac Cron Setup
+### Market Orders (run-strategy)
+Best for scheduled execution at specific times:
+
+#### Linux/Mac Cron Setup
 ```cron
 # Run at market open, midday, and before close
 0 10 * * 1-5 /path/to/run-strategy >> /logs/morning.log 2>&1
@@ -192,8 +220,29 @@ python scripts/db_viewer.py --premiums --days 60
 30 15 * * 1-5 /path/to/run-strategy >> /logs/closing.log 2>&1
 ```
 
-### Windows Task Scheduler
+#### Windows Task Scheduler
 Create scheduled tasks to run `run-strategy.exe` at desired intervals.
+
+### Limit Orders (run-strategy-limit)
+Best for continuous operation during market hours:
+
+#### Linux/Mac
+```bash
+# Run as a service or in screen/tmux
+screen -S wheelforge
+run-strategy-limit --update-interval 60 --cycle-interval 300
+# Detach with Ctrl+A, D
+```
+
+#### Windows
+```powershell
+# Run in background
+Start-Process run-strategy-limit -ArgumentList "--update-interval 60" -WindowStyle Hidden
+```
+
+### Choosing Between Market and Limit Orders
+- **Market Orders**: Simple, immediate execution, good for scheduled runs
+- **Limit Orders**: Better prices, requires continuous monitoring, saves on spreads
 
 ## 🧪 Testing & Validation
 
@@ -226,6 +275,14 @@ Three rolling approaches available:
 - **Down Roll**: Lower strike for better assignment odds
 - **Adaptive**: Best option based on scoring algorithm
 
+### Smart Limit Order System
+Avoid paying the full bid-ask spread with intelligent order management:
+- **Initial Pricing**: Orders start at bid-ask midpoint for optimal fills
+- **Automatic Repricing**: Unfilled orders reprice every 60 seconds (configurable)
+- **Progressive Strategy**: Each reprice becomes slightly more aggressive
+- **Order Expiration**: Auto-cancels after 30 minutes if unfilled
+- **Market Hours Operation**: Runs continuously during trading hours
+
 ## 🛡️ Production Considerations
 
 ### Before Live Trading
@@ -245,7 +302,28 @@ Three rolling approaches available:
 ## 📚 Documentation
 
 ### Essential Commands Reference
-See `CLAUDE.md` for complete command reference and development notes.
+
+#### Market Order Strategy
+```bash
+run-strategy [options]
+  --fresh-start        # Liquidate all positions first
+  --strat-log         # Enable JSON strategy logging
+  --log-level LEVEL   # DEBUG, INFO, WARNING, ERROR
+  --log-to-file       # Save logs to file
+```
+
+#### Limit Order Strategy
+```bash
+run-strategy-limit [options]
+  --update-interval SECS  # Order repricing interval (default: 60)
+  --cycle-interval SECS   # Strategy cycle interval (default: 300)
+  --max-order-age MINS    # Max order age before cancel (default: 30)
+  --once                  # Run one cycle then exit
+  --strat-log            # Enable JSON strategy logging
+  --log-level LEVEL      # DEBUG, INFO, WARNING, ERROR
+  --log-to-file          # Save logs to file
+```
+
 
 ### Configuration Guide
 Use the interactive configuration manager:

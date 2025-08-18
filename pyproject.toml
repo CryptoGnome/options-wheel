@@ -23,7 +23,8 @@ dependencies = [
 
 [project.scripts]
 run-strategy = "scripts.run_strategy:main"
-# (optional) lets users just type `run-strategy` in the terminal
+run-strategy-limit = "scripts.run_strategy_limit:main"
+# (optional) lets users just type `run-strategy` or `run-strategy-limit` in the terminal
 
 [tool.setuptools.packages.find]
 where = ["."]

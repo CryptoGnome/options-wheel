@@ -12,8 +12,8 @@ from alpaca.trading.client import TradingClient
 from alpaca.data.historical.option import OptionHistoricalDataClient
 from alpaca.data.historical.stock import StockHistoricalDataClient, StockLatestTradeRequest
 from alpaca.data.requests import OptionSnapshotRequest
-from alpaca.trading.requests import GetOptionContractsRequest, MarketOrderRequest
-from alpaca.trading.enums import ContractType, AssetStatus, AssetClass
+from alpaca.trading.requests import GetOptionContractsRequest, MarketOrderRequest, LimitOrderRequest, ReplaceOrderRequest
+from alpaca.trading.enums import ContractType, AssetStatus, AssetClass, OrderStatus, OrderSide, OrderType, TimeInForce
 from datetime import timedelta
 from zoneinfo import ZoneInfo
 import datetime
