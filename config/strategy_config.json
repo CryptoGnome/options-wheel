@@ -3,51 +3,47 @@
     "allocation_percentage": 0.99,
     "max_wheel_layers": 2
   },
-  
   "option_filters": {
-    "delta_min": 0.15,
-    "delta_max": 0.30,
+    "delta_min": 0.1769,
+    "delta_max": 0.3,
     "yield_min": 0.04,
-    "yield_max": 1.00,
-    "expiration_min_days": 0,
+    "yield_max": 1,
+    "expiration_min_days": 5,
     "expiration_max_days": 21,
     "open_interest_min": 100,
     "score_min": 0.05
   },
-  
   "rolling_settings": {
     "enabled": false,
     "days_before_expiry": 1,
     "min_premium_to_roll": 0.05,
     "roll_delta_target": 0.25
   },
-  
   "symbols": {
     "IBIT": {
-      "enabled": true,
       "contracts": 1,
+      "enabled": true,
       "rolling": {
         "enabled": false,
         "strategy": "both"
       }
     },
     "MSTY": {
-      "enabled": true,
       "contracts": 1,
+      "enabled": true,
       "rolling": {
         "enabled": false,
         "strategy": "forward"
       }
     },
     "SBET": {
-      "enabled": true,
       "contracts": 1,
+      "enabled": true,
       "rolling": {
         "enabled": false,
         "strategy": "both"
       }
     }
   },
-  
   "default_contracts": 1
 }

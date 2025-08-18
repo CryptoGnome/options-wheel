@@ -348,6 +348,18 @@ def get_strategy_status():
         logger.error(f"Error getting strategy status: {e}")
         return {}
 
+def emit_log(level, message, highlight=False):
+    """Emit log message to connected clients"""
+    try:
+        socketio.emit('log_message', {
+            'level': level,
+            'message': message,
+            'highlight': highlight,
+            'timestamp': datetime.now().isoformat()
+        })
+    except Exception as e:
+        logger.error(f"Error emitting log: {e}")
+
 def run_strategy_cycle():
     """Run one cycle of the strategy"""
     global last_update
@@ -356,19 +368,26 @@ def run_strategy_cycle():
         # Get enabled symbols
         SYMBOLS = strategy_config.get_enabled_symbols()
         if not SYMBOLS:
+            emit_log('warning', 'No enabled symbols configured')
             return
         
         # Get account info
+        emit_log('info', f'Checking account status for {len(SYMBOLS)} symbols')
         account_data = get_account_data()
         if not account_data:
+            emit_log('error', 'Failed to get account data')
             return
+        
+        emit_log('info', f'Account balance: ${account_data["cash_balance"]:,.2f}, Buying power: ${account_data["buying_power"]:,.2f}')
         
         # Get positions
         positions = client.get_positions()
+        emit_log('info', f'Found {len(positions)} active positions')
         
         # Process rolls
         rolls_executed = process_rolls(client, positions, strategy_config, db)
         if rolls_executed > 0:
+            emit_log('success', f'Successfully rolled {rolls_executed} position(s)', True)
             positions = client.get_positions()
             socketio.emit('roll_executed', {'count': rolls_executed})
         
@@ -383,6 +402,8 @@ def run_strategy_cycle():
                                if o.underlying == symbol and o.order_type == 'call']
                 
                 if not pending_calls:
+                    emit_log('info', f'{symbol}: Found {state["qty"]} shares, preparing covered call')
+                    
                     # Track in database if needed
                     existing = db.get_position_history(symbol, 'stock', 'open')
                     if not existing:
@@ -392,6 +413,7 @@ def run_strategy_cycle():
                     order_id = sell_calls_limit(client, order_manager, symbol, 
                                                state["price"], state["qty"], db, None)
                     if order_id:
+                        emit_log('success', f'{symbol}: Covered CALL order placed', True)
                         socketio.emit('order_placed', {
                             'type': 'call',
                             'symbol': symbol,
@@ -413,14 +435,18 @@ def run_strategy_cycle():
         # Sell puts if possible
         buying_power = account_data['buying_power']
         if buying_power > 0 and allowed_symbols:
+            emit_log('info', f'Searching for PUT opportunities on: {", ".join(allowed_symbols)}')
             order_ids = sell_puts_limit(client, order_manager, allowed_symbols, 
                                        buying_power, position_counts, db, None)
             if order_ids:
+                emit_log('success', f'Placed {len(order_ids)} PUT order(s)', True)
                 for order_id in order_ids:
                     socketio.emit('order_placed', {
                         'type': 'put',
                         'order_ids': order_ids
                     })
+        elif not allowed_symbols:
+            emit_log('info', 'No symbols available for new PUT positions (max layers reached)')
         
         # Update pending orders
         results = update_filled_orders(order_manager, db)

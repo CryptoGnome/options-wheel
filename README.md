@@ -1,4 +1,4 @@
-# WheelForge - Professional Options Wheel Strategy Platform
+# WheelForge - Automated Options Wheel Strategy
 
 <div align="center">
   

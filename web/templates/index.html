@@ -471,6 +471,36 @@
                 </div>
             </div>
         </section>
+
+        <!-- Backend Logs Section -->
+        <section class="dashboard-section">
+            <div class="section-header">
+                <h2><i class="ri-terminal-line"></i> Live Strategy Logs</h2>
+                <div class="section-actions">
+                    <button class="btn-icon" id="clearMainLogs" title="Clear logs">
+                        <i class="ri-delete-bin-line"></i>
+                    </button>
+                    <button class="btn-icon active" id="toggleMainAutoScroll" title="Auto-scroll">
+                        <i class="ri-arrow-down-line"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="log-main-container">
+                <div class="log-main-filters">
+                    <button class="log-filter active" data-level="all">All</button>
+                    <button class="log-filter" data-level="info">Info</button>
+                    <button class="log-filter" data-level="warning">Warning</button>
+                    <button class="log-filter" data-level="error">Error</button>
+                    <button class="log-filter" data-level="success">Success</button>
+                </div>
+                <div class="log-main-content" id="mainLogContent">
+                    <div class="log-welcome">
+                        <i class="ri-terminal-box-line"></i>
+                        <p>Strategy logs will appear here when running...</p>
+                    </div>
+                </div>
+            </div>
+        </section>
     </main>
 
     <!-- Modals -->
@@ -512,6 +542,55 @@
     <!-- Loading Overlay -->
     <div class="loading-overlay" id="loadingOverlay">
         <div class="spinner"></div>
+    </div>
+
+    <!-- Real-time Log Viewer -->
+    <div class="log-viewer" id="logViewer">
+        <div class="log-container">
+            <div class="log-header">
+                <h3><i class="ri-terminal-line"></i> Strategy Logs</h3>
+                <div class="log-controls">
+                    <button class="btn-icon" id="clearLogs" title="Clear logs">
+                        <i class="ri-delete-bin-line"></i>
+                    </button>
+                    <button class="btn-icon" id="toggleAutoScroll" title="Auto-scroll">
+                        <i class="ri-arrow-down-line"></i>
+                    </button>
+                    <button class="btn-icon" id="minimizeLogs" title="Minimize">
+                        <i class="ri-subtract-line"></i>
+                    </button>
+                    <button class="btn-icon" id="closeLogs" title="Close">
+                        <i class="ri-close-line"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="log-filters">
+                <button class="log-filter active" data-level="all">All</button>
+                <button class="log-filter" data-level="info">Info</button>
+                <button class="log-filter" data-level="warning">Warning</button>
+                <button class="log-filter" data-level="error">Error</button>
+                <button class="log-filter" data-level="success">Success</button>
+            </div>
+            <div class="log-content" id="logContent">
+                <div class="log-welcome">
+                    <i class="ri-terminal-box-line"></i>
+                    <p>Strategy logs will appear here when running...</p>
+                </div>
+            </div>
+            <div class="log-status-bar">
+                <span class="log-count">0 logs</span>
+                <span class="log-connection">
+                    <i class="ri-wifi-line"></i>
+                    Connected
+                </span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Minimized Log Badge -->
+    <div class="log-badge" id="logBadge">
+        <i class="ri-terminal-line"></i>
+        <span class="badge-count">0</span>
     </div>
 
     <!-- First-Time Setup Wizard -->

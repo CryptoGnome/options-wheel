@@ -81,6 +81,30 @@ function initializeWebSocket() {
         currentConfig = data;
         notyf.success('Configuration updated successfully');
     });
+    
+    // Log streaming events
+    socket.on('log_message', (data) => {
+        addMainLog(data.level || 'info', data.message, data.highlight);
+    });
+    
+    socket.on('strategy_log', (data) => {
+        // Parse different types of strategy logs
+        if (data.type === 'put_order') {
+            addMainLog('success', `PUT order placed: ${data.symbol} @ $${data.strike} for $${data.premium}`, true);
+        } else if (data.type === 'call_order') {
+            addMainLog('success', `CALL order placed: ${data.symbol} @ $${data.strike} for $${data.premium}`, true);
+        } else if (data.type === 'order_filled') {
+            addMainLog('info', `Order filled: ${data.symbol} - ${data.details}`);
+        } else if (data.type === 'position_assigned') {
+            addMainLog('warning', `Position assigned: ${data.symbol} - ${data.quantity} shares @ $${data.price}`, true);
+        } else if (data.type === 'roll_executed') {
+            addMainLog('info', `Position rolled: ${data.symbol} from ${data.old_strike} to ${data.new_strike}`);
+        } else if (data.type === 'error') {
+            addMainLog('error', `Error: ${data.message}`, true);
+        } else {
+            addMainLog('info', data.message || JSON.stringify(data));
+        }
+    });
 }
 
 // Theme Management
@@ -954,6 +978,13 @@ async function toggleStrategy() {
         if (response.ok) {
             strategyRunning = !strategyRunning;
             updateStrategyButton();
+            
+            // Add log when starting/stopping strategy
+            if (strategyRunning) {
+                addMainLog('success', 'Strategy started successfully', true);
+            } else {
+                addMainLog('warning', 'Strategy stopped', true);
+            }
         } else {
             notyf.error('Failed to toggle strategy');
         }
@@ -1157,3 +1188,357 @@ setInterval(() => {
         socket.emit('request_update');
     }
 }, 30000); // Refresh every 30 seconds
+
+// Log Viewer Functionality
+let logEntries = [];
+let autoScroll = true;
+let currentFilter = 'all';
+let isLogMinimized = false;
+
+function initializeLogViewer() {
+    // Log viewer controls
+    document.getElementById('clearLogs').addEventListener('click', clearLogs);
+    document.getElementById('toggleAutoScroll').addEventListener('click', toggleAutoScroll);
+    document.getElementById('minimizeLogs').addEventListener('click', minimizeLogViewer);
+    document.getElementById('closeLogs').addEventListener('click', hideLogViewer);
+    
+    // Log badge click
+    document.getElementById('logBadge').addEventListener('click', restoreLogViewer);
+    
+    // Filter buttons
+    document.querySelectorAll('.log-filter').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const level = e.target.dataset.level;
+            filterLogs(level);
+        });
+    });
+}
+
+function showLogViewer() {
+    const viewer = document.getElementById('logViewer');
+    const badge = document.getElementById('logBadge');
+    
+    viewer.classList.add('active');
+    viewer.classList.remove('minimized');
+    badge.classList.remove('active');
+    isLogMinimized = false;
+}
+
+function hideLogViewer() {
+    const viewer = document.getElementById('logViewer');
+    const badge = document.getElementById('logBadge');
+    
+    viewer.classList.remove('active');
+    badge.classList.remove('active');
+    isLogMinimized = false;
+}
+
+function minimizeLogViewer() {
+    const viewer = document.getElementById('logViewer');
+    const badge = document.getElementById('logBadge');
+    
+    viewer.classList.add('minimized');
+    badge.classList.add('active');
+    isLogMinimized = true;
+    
+    // Update badge count
+    updateLogBadge();
+}
+
+function restoreLogViewer() {
+    const viewer = document.getElementById('logViewer');
+    const badge = document.getElementById('logBadge');
+    
+    viewer.classList.remove('minimized');
+    badge.classList.remove('active');
+    isLogMinimized = false;
+}
+
+function addLog(level, message, highlight = false) {
+    const timestamp = new Date().toLocaleTimeString();
+    const entry = {
+        timestamp,
+        level,
+        message,
+        highlight
+    };
+    
+    logEntries.push(entry);
+    
+    // Check if entry passes current filter
+    if (currentFilter === 'all' || currentFilter === level) {
+        appendLogEntry(entry);
+    }
+    
+    // Update count
+    updateLogCount();
+    
+    // Update badge if minimized
+    if (isLogMinimized) {
+        updateLogBadge();
+    }
+    
+    // Auto-scroll if enabled
+    if (autoScroll) {
+        scrollToBottom();
+    }
+}
+
+function appendLogEntry(entry) {
+    const logContent = document.getElementById('logContent');
+    
+    // Remove welcome message if it exists
+    const welcome = logContent.querySelector('.log-welcome');
+    if (welcome) {
+        welcome.remove();
+    }
+    
+    // Create log entry element
+    const logDiv = document.createElement('div');
+    logDiv.className = `log-entry ${entry.highlight ? 'highlight' : ''}`;
+    
+    logDiv.innerHTML = `
+        <span class="log-timestamp">${entry.timestamp}</span>
+        <span class="log-level ${entry.level}">${entry.level}</span>
+        <span class="log-message ${entry.level}">${formatLogMessage(entry.message)}</span>
+    `;
+    
+    logContent.appendChild(logDiv);
+}
+
+function formatLogMessage(message) {
+    // Format special patterns in log messages
+    message = message.replace(/`([^`]+)`/g, '<span class="log-code">$1</span>');
+    message = message.replace(/\$([0-9,.]+)/g, '<strong>$$1</strong>');
+    message = message.replace(/([A-Z]{2,5})/g, '<strong>$1</strong>');
+    return message;
+}
+
+function clearLogs() {
+    logEntries = [];
+    const logContent = document.getElementById('logContent');
+    logContent.innerHTML = `
+        <div class="log-welcome">
+            <i class="ri-terminal-box-line"></i>
+            <p>Strategy logs will appear here when running...</p>
+        </div>
+    `;
+    updateLogCount();
+    updateLogBadge();
+}
+
+function filterLogs(level) {
+    currentFilter = level;
+    
+    // Update active filter button
+    document.querySelectorAll('.log-filter').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.level === level);
+    });
+    
+    // Re-render filtered logs
+    const logContent = document.getElementById('logContent');
+    logContent.innerHTML = '';
+    
+    const filteredLogs = level === 'all' 
+        ? logEntries 
+        : logEntries.filter(e => e.level === level);
+    
+    if (filteredLogs.length === 0) {
+        logContent.innerHTML = `
+            <div class="log-welcome">
+                <i class="ri-filter-off-line"></i>
+                <p>No ${level} logs</p>
+            </div>
+        `;
+    } else {
+        filteredLogs.forEach(entry => appendLogEntry(entry));
+    }
+    
+    if (autoScroll) {
+        scrollToBottom();
+    }
+}
+
+function toggleAutoScroll() {
+    autoScroll = !autoScroll;
+    const btn = document.getElementById('toggleAutoScroll');
+    btn.classList.toggle('active', autoScroll);
+    
+    if (autoScroll) {
+        scrollToBottom();
+    }
+}
+
+function scrollToBottom() {
+    const logContent = document.getElementById('logContent');
+    logContent.scrollTop = logContent.scrollHeight;
+}
+
+function updateLogCount() {
+    const count = document.querySelector('.log-count');
+    if (count) {
+        count.textContent = `${logEntries.length} logs`;
+    }
+}
+
+function updateLogBadge() {
+    const badge = document.querySelector('.log-badge .badge-count');
+    if (badge) {
+        // Count new logs since minimized (simplified - you could track this better)
+        const newLogs = logEntries.length;
+        badge.textContent = newLogs > 99 ? '99+' : newLogs;
+    }
+}
+
+// Initialize log viewer on DOM ready
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initializeLogViewer);
+} else {
+    initializeLogViewer();
+}
+
+// Main Dashboard Log Functions
+let mainLogEntries = [];
+let mainAutoScroll = true;
+let mainCurrentFilter = 'all';
+
+function initializeMainLogs() {
+    // Main log controls
+    document.getElementById('clearMainLogs').addEventListener('click', clearMainLogs);
+    document.getElementById('toggleMainAutoScroll').addEventListener('click', toggleMainAutoScroll);
+    
+    // Filter buttons for main logs
+    document.querySelectorAll('.log-main-filters .log-filter').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const level = e.target.dataset.level;
+            filterMainLogs(level);
+        });
+    });
+}
+
+function addMainLog(level, message, highlight = false) {
+    const timestamp = new Date().toLocaleTimeString();
+    const entry = {
+        timestamp,
+        level,
+        message,
+        highlight
+    };
+    
+    mainLogEntries.push(entry);
+    
+    // Keep only last 500 logs
+    if (mainLogEntries.length > 500) {
+        mainLogEntries.shift();
+    }
+    
+    // Check if entry passes current filter
+    if (mainCurrentFilter === 'all' || mainCurrentFilter === level) {
+        appendMainLogEntry(entry);
+    }
+    
+    // Auto-scroll if enabled
+    if (mainAutoScroll) {
+        scrollMainToBottom();
+    }
+}
+
+function appendMainLogEntry(entry) {
+    const logContent = document.getElementById('mainLogContent');
+    
+    // Remove welcome message if it exists
+    const welcome = logContent.querySelector('.log-welcome');
+    if (welcome) {
+        welcome.remove();
+    }
+    
+    // Create log entry element
+    const logDiv = document.createElement('div');
+    logDiv.className = `log-entry ${entry.highlight ? 'highlight' : ''}`;
+    
+    logDiv.innerHTML = `
+        <span class="log-timestamp">${entry.timestamp}</span>
+        <span class="log-level ${entry.level}">${entry.level}</span>
+        <span class="log-message ${entry.level}">${formatLogMessage(entry.message)}</span>
+    `;
+    
+    logContent.appendChild(logDiv);
+    
+    // Keep only last 100 visible entries
+    const entries = logContent.querySelectorAll('.log-entry');
+    if (entries.length > 100) {
+        entries[0].remove();
+    }
+}
+
+function clearMainLogs() {
+    mainLogEntries = [];
+    const logContent = document.getElementById('mainLogContent');
+    logContent.innerHTML = `
+        <div class="log-welcome">
+            <i class="ri-terminal-box-line"></i>
+            <p>Strategy logs will appear here when running...</p>
+        </div>
+    `;
+}
+
+function filterMainLogs(level) {
+    mainCurrentFilter = level;
+    
+    // Update active filter button
+    document.querySelectorAll('.log-main-filters .log-filter').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.level === level);
+    });
+    
+    // Re-render filtered logs
+    const logContent = document.getElementById('mainLogContent');
+    logContent.innerHTML = '';
+    
+    const filteredLogs = level === 'all' 
+        ? mainLogEntries 
+        : mainLogEntries.filter(e => e.level === level);
+    
+    if (filteredLogs.length === 0) {
+        logContent.innerHTML = `
+            <div class="log-welcome">
+                <i class="ri-filter-off-line"></i>
+                <p>No ${level} logs</p>
+            </div>
+        `;
+    } else {
+        // Show last 100 filtered logs
+        filteredLogs.slice(-100).forEach(entry => appendMainLogEntry(entry));
+    }
+    
+    if (mainAutoScroll) {
+        scrollMainToBottom();
+    }
+}
+
+function toggleMainAutoScroll() {
+    mainAutoScroll = !mainAutoScroll;
+    const btn = document.getElementById('toggleMainAutoScroll');
+    btn.classList.toggle('active', mainAutoScroll);
+    
+    if (mainAutoScroll) {
+        scrollMainToBottom();
+    }
+}
+
+function scrollMainToBottom() {
+    const logContent = document.getElementById('mainLogContent');
+    logContent.scrollTop = logContent.scrollHeight;
+}
+
+// Initialize main logs on DOM ready
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initializeMainLogs);
+} else {
+    initializeMainLogs();
+}
+
+// Export log functions for global access
+window.addLog = addLog;
+window.showLogViewer = showLogViewer;
+window.hideLogViewer = hideLogViewer;
+window.addMainLog = addMainLog;
