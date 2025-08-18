@@ -299,7 +299,23 @@ This software is provided as-is for educational purposes. Past performance does 
 
 ## 📄 License
 
-This project is a fork of the original Alpaca options-wheel implementation, enhanced with production-ready features, advanced position management, and enterprise-grade reliability.
+This project is a fork of the [Alpaca options-wheel](https://github.com/alpacahq/options-wheel) implementation, significantly enhanced with:
+- Production-ready error handling and recovery
+- Advanced position management with multi-layer wheels
+- Automatic option rolling capabilities
+- Premium-adjusted cost basis tracking
+- Enterprise-grade reliability features
+
+The original codebase and this fork are provided for educational purposes. Please ensure you understand all risks before using this software for live trading.
+
+### Contributing
+
+Contributions are welcome! Please feel free to submit pull requests, report bugs, or suggest new features through the GitHub issues page.
+
+### Acknowledgments
+
+- Original implementation by [Alpaca Markets](https://alpaca.markets/)
+- Enhanced and maintained by the WheelForge community
 
 ---
 
