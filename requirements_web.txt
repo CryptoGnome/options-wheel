@@ -1,0 +1,5 @@
+# Web Dashboard Requirements
+flask==3.0.0
+flask-cors==4.0.0
+flask-socketio==5.3.6
+python-socketio==5.11.0

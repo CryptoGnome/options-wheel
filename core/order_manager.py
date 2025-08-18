@@ -32,11 +32,11 @@ class PendingOrder:
     attempts: int = 0
     max_attempts: int = 10  # Maximum repricing attempts before giving up
     
-    def should_update(self, update_interval: int = 60) -> bool:
+    def should_update(self, update_interval: int = 20) -> bool:
         """Check if order should be repriced based on time interval"""
         return (datetime.now() - self.last_updated).total_seconds() >= update_interval
     
-    def is_expired(self, max_age_minutes: int = 30) -> bool:
+    def is_expired(self, max_age_minutes: int = 1) -> bool:
         """Check if order has been pending too long"""
         return (datetime.now() - self.created_at).total_seconds() >= max_age_minutes * 60
 
@@ -44,14 +44,14 @@ class PendingOrder:
 class OrderManager:
     """Manages limit orders with automatic repricing"""
     
-    def __init__(self, client, update_interval: int = 60, max_order_age: int = 30):
+    def __init__(self, client, update_interval: int = 20, max_order_age: int = 1):
         """
         Initialize order manager.
         
         Args:
             client: BrokerClient instance
-            update_interval: Seconds between price updates (default 60)
-            max_order_age: Maximum minutes to keep trying an order (default 30)
+            update_interval: Seconds between price updates (default 20)
+            max_order_age: Maximum minutes to keep trying an order (default 1)
         """
         self.client = client
         self.update_interval = update_interval

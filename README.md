@@ -230,14 +230,14 @@ Best for continuous operation during market hours:
 ```bash
 # Run as a service or in screen/tmux
 screen -S wheelforge
-run-strategy-limit --update-interval 60 --cycle-interval 300
+run-strategy-limit
 # Detach with Ctrl+A, D
 ```
 
 #### Windows
 ```powershell
 # Run in background
-Start-Process run-strategy-limit -ArgumentList "--update-interval 60" -WindowStyle Hidden
+Start-Process run-strategy-limit -WindowStyle Hidden
 ```
 
 ### Choosing Between Market and Limit Orders
@@ -278,9 +278,9 @@ Three rolling approaches available:
 ### Smart Limit Order System
 Avoid paying the full bid-ask spread with intelligent order management:
 - **Initial Pricing**: Orders start at bid-ask midpoint for optimal fills
-- **Automatic Repricing**: Unfilled orders reprice every 60 seconds (configurable)
+- **Automatic Repricing**: Unfilled orders reprice every 20 seconds (configurable)
 - **Progressive Strategy**: Each reprice becomes slightly more aggressive
-- **Order Expiration**: Auto-cancels after 30 minutes if unfilled
+- **Order Expiration**: Auto-cancels after 60 seconds if unfilled
 - **Market Hours Operation**: Runs continuously during trading hours
 
 ## 🛡️ Production Considerations
@@ -315,9 +315,9 @@ run-strategy [options]
 #### Limit Order Strategy
 ```bash
 run-strategy-limit [options]
-  --update-interval SECS  # Order repricing interval (default: 60)
-  --cycle-interval SECS   # Strategy cycle interval (default: 300)
-  --max-order-age MINS    # Max order age before cancel (default: 30)
+  --update-interval SECS  # Order repricing interval (default: 20)
+  --cycle-interval SECS   # Strategy cycle interval (default: 60)
+  --max-order-age MINS    # Max order age before cancel (default: 1)
   --once                  # Run one cycle then exit
   --strat-log            # Enable JSON strategy logging
   --log-level LEVEL      # DEBUG, INFO, WARNING, ERROR

@@ -19,6 +19,11 @@ from core.order_manager import OrderManager
 from core.rolling import process_rolls
 from core.database import WheelDatabase
 from core.thread_safe_manager import ThreadSafeStateManager
+from core.elite_display import (
+    print_elite_header, display_market_overview, display_positions_elite,
+    display_strategy_matrix, display_pending_orders_elite, 
+    display_performance_dashboard, display_cycle_summary, display_footer
+)
 from strategy_logging.strategy_logger import StrategyLogger
 
 
@@ -76,30 +81,55 @@ def run_strategy_cycle(client, order_manager, state_manager, db, strat_logger):
         return
     
     # Get account info
+    account = client.get_account()
     actual_balance = client.get_non_margin_buying_power()
     balance_allocation = strategy_config.get_balance_allocation()
     allocated_balance = actual_balance * balance_allocation
     options_buying_power = client.get_options_buying_power()
+    portfolio_value = float(account.portfolio_value)
     
-    logger.info(f"Account balance: ${actual_balance:.2f}, Allocated: ${allocated_balance:.2f}")
-    logger.info(f"Options buying power: ${options_buying_power:.2f}")
+    # Display market overview
+    display_market_overview(account, actual_balance, allocated_balance,
+                           options_buying_power, portfolio_value, balance_allocation)
     
     # Get current positions
     positions = client.get_positions()
-    strat_logger.add_current_positions(positions)
+    if strat_logger:
+        strat_logger.add_current_positions(positions)
     
     # Process any rolls first
     rolls_executed = process_rolls(client, positions, strategy_config, db, strat_logger)
     if rolls_executed > 0:
         logger.info(f"Executed {rolls_executed} roll(s)")
         positions = client.get_positions()
-        strat_logger.add_current_positions(positions)
+        if strat_logger:
+            strat_logger.add_current_positions(positions)
     
     # Update state
     current_risk = state_manager.calculate_risk(positions)
     position_counts = state_manager.count_positions_by_symbol(positions)
     states = state_manager.update_state(positions)
-    strat_logger.add_state_dict(states)
+    if strat_logger:
+        strat_logger.add_state_dict(states)
+    
+    # Track actions taken
+    actions_taken = []
+    
+    # Determine which symbols can have more positions (needed for display)
+    allowed_symbols = []
+    max_layers = strategy_config.get_max_wheel_layers()
+    
+    # Display positions
+    position_summary = display_positions_elite(positions, states, position_counts)
+    
+    # Display strategy matrix
+    display_strategy_matrix(position_counts, states, max_layers, allowed_symbols)
+    
+    # Display performance dashboard
+    display_performance_dashboard(db)
+    
+    # Display pending orders
+    display_pending_orders_elite(order_manager)
     
     # Sell calls on any long shares
     for symbol, state in states.items():
@@ -119,12 +149,9 @@ def run_strategy_cycle(client, order_manager, state_manager, db, strat_logger):
                 order_id = sell_calls_limit(client, order_manager, symbol, 
                                            state["price"], state["qty"], db, strat_logger)
                 if order_id:
-                    logger.info(f"Placed limit order to sell call for {symbol}")
+                    actions_taken.append(f"Placed call order for {symbol}")
     
-    # Determine which symbols can have more positions
-    allowed_symbols = []
-    max_layers = strategy_config.get_max_wheel_layers()
-    
+    # Now populate allowed_symbols with actual logic
     for symbol in SYMBOLS:
         if state_manager.is_position_allowed(symbol, max_layers):
             # Check if we already have pending put orders for this symbol
@@ -144,27 +171,32 @@ def run_strategy_cycle(client, order_manager, state_manager, db, strat_logger):
     buying_power = min(options_buying_power, allocated_balance)
     buying_power = max(0, buying_power)
     
-    strat_logger.set_buying_power(buying_power)
-    strat_logger.set_allowed_symbols(allowed_symbols)
+    if strat_logger:
+        strat_logger.set_buying_power(buying_power)
+        strat_logger.set_allowed_symbols(allowed_symbols)
     
     # Sell puts if we have buying power and allowed symbols
     if buying_power > 0 and allowed_symbols:
         order_ids = sell_puts_limit(client, order_manager, allowed_symbols, 
                                    buying_power, position_counts, db, strat_logger)
         if order_ids:
-            logger.info(f"Placed {len(order_ids)} limit order(s) to sell puts")
+            actions_taken.append(f"Placed {len(order_ids)} put order(s)")
     
-    strat_logger.save()
+    # Display cycle summary
+    display_cycle_summary(actions_taken, allowed_symbols, buying_power)
+    
+    if strat_logger:
+        strat_logger.save()
 
 
 def main():
     parser = argparse.ArgumentParser(description='Run wheel strategy with limit orders during market hours')
-    parser.add_argument('--update-interval', type=int, default=60,
-                       help='Seconds between order repricing (default: 60)')
-    parser.add_argument('--cycle-interval', type=int, default=300,
-                       help='Seconds between strategy cycles (default: 300)')
-    parser.add_argument('--max-order-age', type=int, default=30,
-                       help='Maximum minutes to keep an order before cancelling (default: 30)')
+    parser.add_argument('--update-interval', type=int, default=20,
+                       help='Seconds between order repricing (default: 20)')
+    parser.add_argument('--cycle-interval', type=int, default=60,
+                       help='Seconds between strategy cycles (default: 60)')
+    parser.add_argument('--max-order-age', type=int, default=1,
+                       help='Maximum minutes to keep an order before cancelling (default: 1)')
     parser.add_argument('--strat-log', action='store_true',
                        help='Enable strategy logging to JSON')
     parser.add_argument('--log-level', default='INFO',
@@ -204,7 +236,8 @@ def main():
     signal.signal(signal.SIGTERM, signal_handler)
     
     # Initialize components
-    logger.info("Initializing wheel strategy with limit orders...")
+    print_elite_header()
+    logger.info("System initialization in progress...")
     
     client = BrokerClient(api_key=ALPACA_API_KEY, secret_key=ALPACA_SECRET_KEY, paper=IS_PAPER)
     order_manager = OrderManager(client, args.update_interval, args.max_order_age)
@@ -212,14 +245,27 @@ def main():
     db = WheelDatabase()
     strat_logger = StrategyLogger() if args.strat_log else None
     
-    logger.info(f"Configuration:")
-    logger.info(f"  Update interval: {args.update_interval} seconds")
-    logger.info(f"  Cycle interval: {args.cycle_interval} seconds")
-    logger.info(f"  Max order age: {args.max_order_age} minutes")
-    logger.info(f"  Trading symbols: {', '.join(strategy_config.get_enabled_symbols())}")
+    logger.info("")
+    logger.info("Configuration:")
+    logger.info(f"  Symbols: {', '.join(strategy_config.get_enabled_symbols())}")
+    logger.info(f"  Update: {args.update_interval}s | Cycle: {args.cycle_interval}s | Max Age: {args.max_order_age}m")
+    logger.info(f"  Mode: {'PAPER' if IS_PAPER else 'LIVE'} Trading")
     
     last_cycle_time = 0
     last_update_time = 0
+    
+    # Check market status
+    if not is_market_open():
+        logger.info("")
+        logger.info("Market Status: CLOSED")
+        if args.once:
+            logger.info("Exiting (--once flag set and market is closed)")
+            return
+        else:
+            logger.info("Waiting for market open...")
+    else:
+        logger.info("")
+        logger.info("Market Status: OPEN")
     
     try:
         while not should_exit:
@@ -236,8 +282,7 @@ def main():
             
             # Run strategy cycle
             if current_time - last_cycle_time >= args.cycle_interval:
-                logger.info("\n" + "="*60)
-                logger.info("Running strategy cycle...")
+                print_elite_header()
                 
                 try:
                     run_strategy_cycle(client, order_manager, state_manager, db, strat_logger)
@@ -247,8 +292,11 @@ def main():
                 last_cycle_time = current_time
                 
                 if args.once:
-                    logger.info("--once flag set, exiting after one cycle")
+                    logger.info("\n--once flag set, exiting after one cycle")
                     break
+                else:
+                    time_until_next = args.cycle_interval
+                    display_footer(time_until_next)
             
             # Update pending orders
             if current_time - last_update_time >= args.update_interval:
@@ -272,6 +320,11 @@ def main():
                             
                     except Exception as e:
                         logger.error(f"Error updating orders: {str(e)}", exc_info=True)
+                else:
+                    # Show periodic status even if no orders (but less frequently)
+                    time_until_next = args.cycle_interval - (current_time - last_cycle_time)
+                    if time_until_next > 0 and int(time_until_next) % 20 == 0:
+                        logger.info(f"Next cycle in {int(time_until_next)} seconds...")
                 
                 last_update_time = current_time
             
@@ -297,17 +350,17 @@ def main():
             db.close()
             logger.info("Database connection closed")
         
-        # Print summary
+        # Print final summary
         if db:
-            logger.info("\nStrategy Summary:")
-            summary = db.get_summary_stats()
-            if summary:
-                logger.info(f"Symbols traded: {summary['symbols_traded']}")
-                logger.info(f"Total put premiums: ${summary['total_put_premiums']:.2f}")
-                logger.info(f"Total call premiums: ${summary['total_call_premiums']:.2f}")
-                logger.info(f"Put trades: {summary['put_trades']}, Call trades: {summary['call_trades']}")
+            print_elite_header()
+            logger.info("")
+            logger.info("SESSION COMPLETE")
+            logger.info("─" * 78)
+            display_performance_dashboard(db)
         
-        logger.info("Shutdown complete")
+        logger.info("")
+        logger.info("─" * 78)
+        logger.info("System shutdown complete.")
 
 
 if __name__ == "__main__":

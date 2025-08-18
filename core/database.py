@@ -286,7 +286,7 @@ class WheelDatabase:
                     
                     # Get total premiums collected (calls only, as they reduce cost basis when holding)
                     cursor.execute("""
-                        SELECT SUM(premium_collected * contracts) as total_premiums
+                        SELECT SUM(premium_collected * contracts * 100) as total_premiums
                         FROM premiums 
                         WHERE symbol = ? AND option_type = 'C' AND status IN ('collected', 'expired')
                     """, (symbol,))
@@ -296,8 +296,8 @@ class WheelDatabase:
                     
                     if shares > 0:
                         avg_cost = total_cost / shares
-                        # Each option contract is for 100 shares
-                        premium_per_share = (total_premiums * 100) / shares
+                        # total_premiums is already in dollars (from query: premium_collected * contracts * 100)
+                        premium_per_share = total_premiums / shares
                         adjusted_cost = avg_cost - premium_per_share
                         
                         # Insert or update cost basis
@@ -340,6 +340,23 @@ class WheelDatabase:
         except Exception as e:
             logger.error(f"Failed to get cost basis for {symbol}: {str(e)}")
             return None
+    
+    def get_recent_trades(self, limit=10):
+        """Get recent trades from the database"""
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    SELECT timestamp, symbol, trade_type, strike_price, premium
+                    FROM trades
+                    ORDER BY timestamp DESC
+                    LIMIT ?
+                """, (limit,))
+                
+                return cursor.fetchall()
+        except Exception as e:
+            logger.error(f"Failed to get recent trades: {str(e)}")
+            return []
     
     def get_position_history(self, symbol=None, position_type=None, status=None):
         """Get position history with optional filters"""
@@ -410,37 +427,172 @@ class WheelDatabase:
         try:
             with self.get_connection() as conn:
                 cursor = conn.cursor()
-            
-            if symbol:
-                # Symbol-specific stats
-                cursor.execute("""
-                    SELECT 
-                        COUNT(DISTINCT symbol) as symbols_traded,
-                        SUM(CASE WHEN option_type = 'P' THEN premium_collected * contracts ELSE 0 END) as total_put_premiums,
-                        SUM(CASE WHEN option_type = 'C' THEN premium_collected * contracts ELSE 0 END) as total_call_premiums,
-                        COUNT(CASE WHEN option_type = 'P' THEN 1 ELSE NULL END) as put_trades,
-                        COUNT(CASE WHEN option_type = 'C' THEN 1 ELSE NULL END) as call_trades
-                    FROM premiums
-                    WHERE symbol = ?
-                """, (symbol,))
-            else:
-                # Overall stats
-                cursor.execute("""
-                    SELECT 
-                        COUNT(DISTINCT symbol) as symbols_traded,
-                        SUM(CASE WHEN option_type = 'P' THEN premium_collected * contracts ELSE 0 END) as total_put_premiums,
-                        SUM(CASE WHEN option_type = 'C' THEN premium_collected * contracts ELSE 0 END) as total_call_premiums,
-                        COUNT(CASE WHEN option_type = 'P' THEN 1 ELSE NULL END) as put_trades,
-                        COUNT(CASE WHEN option_type = 'C' THEN 1 ELSE NULL END) as call_trades
-                    FROM premiums
-                """)
-            
+                
+                if symbol:
+                    # Symbol-specific stats
+                    cursor.execute("""
+                        SELECT 
+                            COUNT(DISTINCT symbol) as symbols_traded,
+                            SUM(CASE WHEN option_type = 'P' THEN premium_collected * contracts * 100 ELSE 0 END) as total_put_premiums,
+                            SUM(CASE WHEN option_type = 'C' THEN premium_collected * contracts * 100 ELSE 0 END) as total_call_premiums,
+                            COUNT(CASE WHEN option_type = 'P' THEN 1 ELSE NULL END) as put_trades,
+                            COUNT(CASE WHEN option_type = 'C' THEN 1 ELSE NULL END) as call_trades
+                        FROM premiums
+                        WHERE symbol = ?
+                    """, (symbol,))
+                else:
+                    # Overall stats
+                    cursor.execute("""
+                        SELECT 
+                            COUNT(DISTINCT symbol) as symbols_traded,
+                            SUM(CASE WHEN option_type = 'P' THEN premium_collected * contracts * 100 ELSE 0 END) as total_put_premiums,
+                            SUM(CASE WHEN option_type = 'C' THEN premium_collected * contracts * 100 ELSE 0 END) as total_call_premiums,
+                            COUNT(CASE WHEN option_type = 'P' THEN 1 ELSE NULL END) as put_trades,
+                            COUNT(CASE WHEN option_type = 'C' THEN 1 ELSE NULL END) as call_trades
+                        FROM premiums
+                    """)
+                
                 result = cursor.fetchone()
                 return dict(result) if result else None
                 
         except Exception as e:
             logger.error(f"Failed to get summary stats: {str(e)}")
             return None
+    
+    def get_cumulative_pnl_history(self, days_back=90) -> List[Dict[str, Any]]:
+        """Get cumulative P&L history for charting."""
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                
+                # Get daily premium income
+                cursor.execute("""
+                    SELECT 
+                        DATE(trade_date) as date,
+                        SUM(premium_collected * contracts * 100) as daily_premium
+                    FROM premiums
+                    WHERE trade_date >= date('now', '-' || ? || ' days')
+                    GROUP BY DATE(trade_date)
+                    ORDER BY date
+                """, (days_back,))
+                
+                results = []
+                cumulative_total = 0
+                
+                # Get initial total before the period
+                cursor.execute("""
+                    SELECT SUM(premium_collected * contracts * 100) as prior_total
+                    FROM premiums
+                    WHERE trade_date < date('now', '-' || ? || ' days')
+                """, (days_back,))
+                
+                prior_result = cursor.fetchone()
+                if prior_result and prior_result['prior_total']:
+                    cumulative_total = prior_result['prior_total']
+                
+                # Build cumulative data
+                for row in cursor.fetchall():
+                    cumulative_total += row['daily_premium'] or 0
+                    results.append({
+                        'date': row['date'],
+                        'daily_premium': row['daily_premium'] or 0,
+                        'cumulative_pnl': cumulative_total
+                    })
+                
+                return results
+                
+        except Exception as e:
+            logger.error(f"Failed to get P&L history: {str(e)}")
+            return []
+    
+    def get_realized_pnl(self) -> Dict[str, float]:
+        """Get realized P&L from closed positions."""
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                
+                # Get total premiums collected
+                cursor.execute("""
+                    SELECT 
+                        SUM(premium_collected * contracts * 100) as total_premiums
+                    FROM premiums
+                    WHERE status IN ('collected', 'expired')
+                """)
+                premiums_result = cursor.fetchone()
+                total_premiums = premiums_result['total_premiums'] or 0 if premiums_result else 0
+                
+                # Get closed stock positions P&L
+                cursor.execute("""
+                    SELECT 
+                        SUM((exit_price - entry_price) * quantity) as stock_pnl
+                    FROM positions
+                    WHERE position_type = 'stock' AND status = 'closed'
+                """)
+                stock_result = cursor.fetchone()
+                stock_pnl = stock_result['stock_pnl'] or 0 if stock_result else 0
+                
+                # Get assignment costs (when puts are assigned)
+                cursor.execute("""
+                    SELECT 
+                        SUM((entry_price - strike_price) * quantity * 100) as assignment_cost
+                    FROM positions p
+                    JOIN premiums pr ON p.symbol = pr.symbol
+                    WHERE p.position_type = 'stock' 
+                    AND p.status IN ('open', 'closed')
+                    AND pr.option_type = 'P' 
+                    AND pr.status = 'assigned'
+                """)
+                assignment_result = cursor.fetchone()
+                assignment_cost = assignment_result['assignment_cost'] or 0 if assignment_result else 0
+                
+                return {
+                    'total_premiums': total_premiums,
+                    'stock_pnl': stock_pnl,
+                    'assignment_cost': assignment_cost,
+                    'total_realized': total_premiums + stock_pnl - assignment_cost
+                }
+                
+        except Exception as e:
+            logger.error(f"Failed to get realized P&L: {str(e)}")
+            return {'total_premiums': 0, 'stock_pnl': 0, 'assignment_cost': 0, 'total_realized': 0}
+    
+    def get_performance_by_symbol(self) -> List[Dict[str, Any]]:
+        """Get performance breakdown by symbol."""
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.cursor()
+                
+                cursor.execute("""
+                    SELECT 
+                        symbol,
+                        SUM(CASE WHEN option_type = 'P' THEN premium_collected * contracts * 100 ELSE 0 END) as put_premiums,
+                        SUM(CASE WHEN option_type = 'C' THEN premium_collected * contracts * 100 ELSE 0 END) as call_premiums,
+                        COUNT(CASE WHEN option_type = 'P' THEN 1 ELSE NULL END) as put_count,
+                        COUNT(CASE WHEN option_type = 'C' THEN 1 ELSE NULL END) as call_count,
+                        MIN(trade_date) as first_trade,
+                        MAX(trade_date) as last_trade
+                    FROM premiums
+                    GROUP BY symbol
+                    ORDER BY (put_premiums + call_premiums) DESC
+                """)
+                
+                results = []
+                for row in cursor.fetchall():
+                    results.append({
+                        'symbol': row['symbol'],
+                        'total_premiums': row['put_premiums'] + row['call_premiums'],
+                        'put_premiums': row['put_premiums'],
+                        'call_premiums': row['call_premiums'],
+                        'total_trades': row['put_count'] + row['call_count'],
+                        'first_trade': row['first_trade'],
+                        'last_trade': row['last_trade']
+                    })
+                
+                return results
+                
+        except Exception as e:
+            logger.error(f"Failed to get performance by symbol: {str(e)}")
+            return []
     
     def close(self):
         """Close database connections and cleanup."""

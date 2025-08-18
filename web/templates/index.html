@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WheelForge Trading Dashboard</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <div class="dashboard">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-content">
+                <h1 class="logo">WheelForge</h1>
+                <div class="header-info">
+                    <span class="market-status" id="market-status">
+                        <span class="status-dot"></span>
+                        <span class="status-text">Checking...</span>
+                    </span>
+                    <span class="trading-mode" id="trading-mode">PAPER</span>
+                    <button class="btn-primary" id="strategy-toggle">Start Strategy</button>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Dashboard -->
+        <div class="dashboard-content">
+            <!-- Account Overview -->
+            <section class="card account-card">
+                <h2>Account Overview</h2>
+                <div class="metrics-grid">
+                    <div class="metric">
+                        <label>Portfolio Value</label>
+                        <div class="value" id="portfolio-value">$0.00</div>
+                    </div>
+                    <div class="metric">
+                        <label>Daily P&L</label>
+                        <div class="value" id="daily-pl">$0.00</div>
+                    </div>
+                    <div class="metric">
+                        <label>Cash Balance</label>
+                        <div class="value" id="cash-balance">$0.00</div>
+                    </div>
+                    <div class="metric">
+                        <label>Buying Power</label>
+                        <div class="value" id="buying-power">$0.00</div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Positions -->
+            <section class="card positions-card">
+                <h2>Active Positions</h2>
+                <div class="positions-container">
+                    <div class="position-tabs">
+                        <button class="tab-btn active" data-tab="options">Options</button>
+                        <button class="tab-btn" data-tab="stocks">Stocks</button>
+                    </div>
+                    <div class="tab-content" id="options-tab">
+                        <table class="positions-table">
+                            <thead>
+                                <tr>
+                                    <th>Symbol</th>
+                                    <th>Type</th>
+                                    <th>Strike</th>
+                                    <th>Exp</th>
+                                    <th>DTE</th>
+                                    <th>Qty</th>
+                                    <th>Entry</th>
+                                    <th>Current</th>
+                                    <th>P&L</th>
+                                </tr>
+                            </thead>
+                            <tbody id="options-tbody">
+                                <tr><td colspan="9" class="empty">No option positions</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="tab-content hidden" id="stocks-tab">
+                        <table class="positions-table">
+                            <thead>
+                                <tr>
+                                    <th>Symbol</th>
+                                    <th>Shares</th>
+                                    <th>Avg Cost</th>
+                                    <th>Current</th>
+                                    <th>Value</th>
+                                    <th>P&L</th>
+                                    <th>State</th>
+                                </tr>
+                            </thead>
+                            <tbody id="stocks-tbody">
+                                <tr><td colspan="7" class="empty">No stock positions</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Strategy Matrix -->
+            <section class="card strategy-card">
+                <h2>Strategy Matrix</h2>
+                <div class="strategy-grid" id="strategy-grid">
+                    <!-- Populated by JavaScript -->
+                </div>
+            </section>
+
+            <!-- Pending Orders -->
+            <section class="card orders-card">
+                <h2>Pending Orders</h2>
+                <div class="orders-container">
+                    <table class="orders-table">
+                        <thead>
+                            <tr>
+                                <th>Symbol</th>
+                                <th>Type</th>
+                                <th>Strike</th>
+                                <th>Qty</th>
+                                <th>Limit</th>
+                                <th>Age</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="orders-tbody">
+                            <tr><td colspan="7" class="empty">No pending orders</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- Total P&L Section -->
+            <section class="card pnl-card">
+                <h2>Total Performance</h2>
+                <div class="pnl-metrics-grid">
+                    <div class="metric highlight">
+                        <label>Total Realized P&L</label>
+                        <div class="value large" id="total-realized-pnl">$0.00</div>
+                    </div>
+                    <div class="metric">
+                        <label>Total Premiums</label>
+                        <div class="value" id="total-premiums">$0.00</div>
+                    </div>
+                    <div class="metric">
+                        <label>Win Rate</label>
+                        <div class="value" id="win-rate">0%</div>
+                    </div>
+                    <div class="metric">
+                        <label>Total Trades</label>
+                        <div class="value" id="total-trades">0</div>
+                    </div>
+                    <div class="metric">
+                        <label>Avg Premium</label>
+                        <div class="value" id="avg-premium">$0.00</div>
+                    </div>
+                    <div class="metric">
+                        <label>Active Symbols</label>
+                        <div class="value" id="active-symbols">0</div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- P&L Chart -->
+            <section class="card chart-card">
+                <h2>P&L History</h2>
+                <div class="chart-tabs">
+                    <button class="chart-tab active" data-chart="cumulative">Cumulative P&L</button>
+                    <button class="chart-tab" data-chart="daily">Daily Income</button>
+                    <button class="chart-tab" data-chart="symbol">By Symbol</button>
+                </div>
+                <div class="chart-container">
+                    <canvas id="pnl-chart"></canvas>
+                </div>
+            </section>
+
+            <!-- Symbol Performance Table -->
+            <section class="card symbol-performance-card">
+                <h2>Performance by Symbol</h2>
+                <div class="symbol-performance-container">
+                    <table class="performance-table">
+                        <thead>
+                            <tr>
+                                <th>Symbol</th>
+                                <th>Total P&L</th>
+                                <th>Put Income</th>
+                                <th>Call Income</th>
+                                <th>Trades</th>
+                                <th>Avg/Trade</th>
+                            </tr>
+                        </thead>
+                        <tbody id="symbol-performance-tbody">
+                            <tr><td colspan="6" class="empty">No trading data available</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </div>
+    </div>
+
+    <!-- Notifications -->
+    <div class="notifications" id="notifications"></div>
+
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>
