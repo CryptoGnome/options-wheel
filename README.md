@@ -147,7 +147,9 @@ This code helps pick the right puts and calls to sell, tracks your positions, an
    ```
    
    > **Tip:** On your first run, use `--fresh-start` to liquidate all existing positions and start clean.
-   
+   ```bash
+   run-strategy --fresh-start --log-level INFO
+   ```
    There are two types of logging:
    
    * **Strategy JSON logging** (`--strat-log`):
